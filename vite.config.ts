@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: process.env.NODE_ENV === 'production' ? '/2Cerebro/' : '/',
+    base: process.env.GITHUB_ACTIONS === 'true' ? '/2Cerebro/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

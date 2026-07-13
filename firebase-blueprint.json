@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "UserBrainData": {
+      "title": "User Brain Data",
+      "description": "All synchronized core brain organizer data for a specific user, including routines, habits, bills, notes, checklists, and calendar ticks.",
+      "type": "object",
+      "properties": {
+        "routine": {
+          "type": "array",
+          "description": "Daily routine time blocks"
+        },
+        "habits": {
+          "type": "array",
+          "description": "Habit tracking list and histories"
+        },
+        "bills": {
+          "type": "array",
+          "description": "Monthly bills and payment states"
+        },
+        "notes": {
+          "type": "array",
+          "description": "Notes, journals, and quick notes"
+        },
+        "checklists": {
+          "type": "array",
+          "description": "Checklists and checklist items"
+        },
+        "calendarTicks": {
+          "type": "array",
+          "description": "Calendar day task state ticks"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of the last local update"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserBrainData",
+      "description": "Individual user document containing all nested synchronized brain models."
+    }
+  }
+}

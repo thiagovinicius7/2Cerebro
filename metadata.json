@@ -1,0 +1,8 @@
+{
+  "name": "Segundo Cérebro",
+  "description": "Seu segundo cérebro digital com rotina, hábitos, contas, notas, listas de tarefas e integração com o Google Agenda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

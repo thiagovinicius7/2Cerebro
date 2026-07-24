@@ -47,7 +47,9 @@ export default function CalendarSection({
       }
     } catch (err: any) {
       console.error(err);
-      if (isIframe) {
+      if (err?.code === 'auth/unauthorized-domain' || (err?.message && err.message.includes('unauthorized-domain'))) {
+        setError('Erro de Domínio Não Autorizado (auth/unauthorized-domain):\n\nComo você está acessando pelo GitHub Pages, o Firebase bloqueia o pop-up porque este domínio não é pré-autorizado nas configurações do AI Studio.\n\n👉 Solução Simples: Abra o aplicativo usando o link compartilhado do AI Studio (Shared App) uma única vez, faça o login por lá para salvar sua chave do Google com segurança na nuvem, e depois volte aqui no GitHub Pages! Sua agenda já aparecerá carregada automaticamente sem precisar de novos pop-ups.');
+      } else if (isIframe) {
         setError('O navegador bloqueou o login do Google dentro do visualizador do AI Studio. Clique em "Abrir em Nova Aba" abaixo para fazer login em uma página cheia, onde o pop-up funcionará perfeitamente.');
       } else if (err?.code === 'auth/popup-blocked') {
         setError('O pop-up de login do Google foi bloqueado pelo seu navegador. Por favor, libere popups para este site.');

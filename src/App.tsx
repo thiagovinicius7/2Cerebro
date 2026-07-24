@@ -436,6 +436,10 @@ export default function App() {
 
             const data = snapshot.data();
 
+            if (data.googleAccessToken && data.googleAccessToken !== accessToken) {
+              setAccessToken(data.googleAccessToken);
+            }
+
             if (!hasInitialLoadRef.current) {
               // Merging local data (from this device's localStorage) and cloud data
               const mergedRoutine = mergeRoutines(routineRef.current, data.routine || []);
@@ -505,7 +509,7 @@ export default function App() {
             }
           } else {
             // New user or no data on Firestore yet. Save local copy.
-            await setDoc(userDocRef, {
+            const payload: any = {
               routine: routineRef.current,
               habits: habitsRef.current,
               bills: billsRef.current,
@@ -513,7 +517,11 @@ export default function App() {
               checklists: checklistsRef.current,
               calendarTicks: calendarTicksRef.current,
               updatedAt: new Date().toISOString()
-            });
+            };
+            if (accessToken) {
+              payload.googleAccessToken = accessToken;
+            }
+            await setDoc(userDocRef, payload, { merge: true });
             cloudRoutineRef.current = routineRef.current;
             cloudHabitsRef.current = habitsRef.current;
             cloudBillsRef.current = billsRef.current;
@@ -561,7 +569,7 @@ export default function App() {
       setSaveStatus('saving');
       try {
         const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, {
+        const payload: any = {
           routine,
           habits,
           bills,
@@ -569,7 +577,11 @@ export default function App() {
           checklists,
           calendarTicks,
           updatedAt: new Date().toISOString()
-        });
+        };
+        if (accessToken) {
+          payload.googleAccessToken = accessToken;
+        }
+        await setDoc(userDocRef, payload, { merge: true });
         cloudRoutineRef.current = routine;
         cloudHabitsRef.current = habits;
         cloudBillsRef.current = bills;
@@ -588,7 +600,7 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [routine, habits, bills, notes, checklists, calendarTicks, user, firestoreLoaded]);
+  }, [routine, habits, bills, notes, checklists, calendarTicks, user, firestoreLoaded, accessToken]);
 
   // Active tab navigation
   const [activeTab, setActiveTab] = useState<'dashboard' | 'routine' | 'calendar' | 'notes' | 'bills' | 'habits' | 'checklists'>('dashboard');
@@ -635,7 +647,9 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       const isIframe = typeof window !== 'undefined' && window.self !== window.top;
-      if (isIframe) {
+      if (err?.code === 'auth/unauthorized-domain' || (err?.message && err.message.includes('unauthorized-domain'))) {
+        alert('Erro de Domínio Não Autorizado (auth/unauthorized-domain):\n\nComo você está acessando pelo GitHub Pages, o Firebase bloqueia o login porque este domínio não é pré-autorizado no console do AI Studio.\n\n👉 Solução Simples: Faça o login com o Google uma única vez pelo link compartilhado do AI Studio (Shared App) para salvar sua chave do Google com segurança na nuvem, e depois volte aqui no GitHub Pages! Sua sincronização e agenda funcionarão automaticamente sem precisar de pop-ups.');
+      } else if (isIframe) {
         addToast('O login foi bloqueado dentro do iframe. Use o botão "Abrir em Nova Aba" ao lado para conectar com sucesso.', 'error');
       } else {
         addToast('Erro ao conectar com a conta do Google. Verifique os pop-ups.', 'error');

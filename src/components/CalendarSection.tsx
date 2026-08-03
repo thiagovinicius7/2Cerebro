@@ -36,6 +36,16 @@ export default function CalendarSection({
 
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
+  useEffect(() => {
+    if (!accessToken && user) {
+      import('../firebase').then(fb => {
+        fb.getAccessToken().then(tok => {
+          if (tok) setAccessToken(tok);
+        });
+      });
+    }
+  }, [user, accessToken]);
+
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
@@ -44,17 +54,18 @@ export default function CalendarSection({
       if (result) {
         setUser(result.user);
         setAccessToken(result.accessToken);
+        addToast?.('Google Agenda sincronizada com sucesso! 📅', 'success');
       }
     } catch (err: any) {
       console.error(err);
       if (err?.code === 'auth/unauthorized-domain' || (err?.message && err.message.includes('unauthorized-domain'))) {
-        setError('Erro de Domínio Não Autorizado (auth/unauthorized-domain):\n\nComo você está acessando pelo GitHub Pages, o Firebase bloqueia o pop-up porque este domínio não é pré-autorizado nas configurações do AI Studio.\n\n👉 Solução Simples: Abra o aplicativo usando o link compartilhado do AI Studio (Shared App) uma única vez, faça o login por lá para salvar sua chave do Google com segurança na nuvem, e depois volte aqui no GitHub Pages! Sua agenda já aparecerá carregada automaticamente sem precisar de novos pop-ups.');
+        setError('Acesse pelo link compartilhado do AI Studio ou abra em uma nova aba para autorizar o domínio do Google.');
       } else if (isIframe) {
-        setError('O navegador bloqueou o login do Google dentro do visualizador do AI Studio. Clique em "Abrir em Nova Aba" abaixo para fazer login em uma página cheia, onde o pop-up funcionará perfeitamente.');
+        setError('O navegador bloqueou o pop-up dentro do visualizador. Por favor, clique em "Abrir em Nova Aba" abaixo.');
       } else if (err?.code === 'auth/popup-blocked') {
-        setError('O pop-up de login do Google foi bloqueado pelo seu navegador. Por favor, libere popups para este site.');
+        setError('O pop-up foi bloqueado. Libere os pop-ups para este site.');
       } else {
-        setError(`Falha ao conectar com o Google Agenda: ${err?.message || 'Verifique as permissões da sua conta Google'}. Certifique-se de autorizar o acesso.`);
+        setError(`Falha ao conectar com o Google Agenda: ${err?.message || 'Tente novamente.'}`);
       }
     } finally {
       setLoading(false);
@@ -135,13 +146,8 @@ export default function CalendarSection({
           }
         }
       } else if (listRes.status === 401) {
-        setAccessToken(null);
-        try {
-          const fb = await import('../firebase');
-          fb.clearGoogleTokenOn401();
-        } catch (err) {
-          console.error(err);
-        }
+        setError('Sua sessão da Google Agenda expira periodicamente. Clique em "Sincronizar com o Google" para renovar o acesso.');
+        setLoading(false);
         return;
       }
 
@@ -330,118 +336,97 @@ export default function CalendarSection({
           </p>
         </div>
 
-        {accessToken && (
+        {user && (
           <button
             onClick={handleLogout}
             className="inline-flex items-center gap-2 border border-slate-200 hover:border-red-200 hover:bg-red-50 text-slate-600 hover:text-red-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer self-start"
           >
             <LogOut size={14} />
-            Desconectar Conta
+            Desconectar
           </button>
         )}
       </div>
 
-      {!accessToken ? (
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-xl mx-auto text-center space-y-6 shadow-sm">
-          <div className="mx-auto w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600">
-            <Calendar size={28} />
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-lg font-display font-semibold text-slate-900">Login Único com o Google</h3>
-            <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-              Ao acessar com sua Conta Google, o sistema conecta automaticamente seu perfil, salva seus dados na nuvem e sincroniza os compromissos da sua Google Agenda de forma instantânea e segura, sem necessidade de reconectar!
-            </p>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-100 text-red-800 rounded-xl p-3 text-xs max-w-md mx-auto">
-              {error}
+      {(!accessToken || error) && (
+        <div className="bg-indigo-50/80 border border-indigo-100 rounded-2xl p-4 text-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="font-bold text-indigo-950 flex items-center gap-1.5 text-sm">
+                <Sparkles size={16} className="text-indigo-600" />
+                Status da Sincronização da Agenda
+              </p>
+              <p className="text-slate-600 text-xs leading-relaxed">
+                {error || 'Conecte sua conta do Google para atualizar seus compromissos em tempo real.'}
+              </p>
             </div>
-          )}
-
-          {isIframe && (
-            <div className="bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl p-4 text-xs max-w-md mx-auto space-y-3">
-              <p className="font-bold flex items-center justify-center gap-1.5 text-indigo-900 text-sm">
-                <span>💡 Visualizador de Iframe Ativo</span>
-              </p>
-              <p className="text-slate-600 leading-relaxed text-[11px] px-2">
-                Os navegadores bloqueiam pop-ups de login do Google dentro de iframes por segurança. Para sincronizar seu Google Agenda com sucesso, abra o aplicativo em uma nova aba dedicada!
-              </p>
-              <button 
-                onClick={() => window.open(window.location.href, '_blank')}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm inline-flex items-center gap-1 cursor-pointer"
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {isIframe && (
+                <button
+                  onClick={() => window.open(window.location.href, '_blank')}
+                  className="bg-white hover:bg-slate-50 text-indigo-700 font-bold px-3 py-2 rounded-xl border border-indigo-200 transition shadow-xs inline-flex items-center gap-1 text-xs cursor-pointer"
+                >
+                  Abrir em Nova Aba ↗
+                </button>
+              )}
+              <button
+                onClick={handleLogin}
+                disabled={loading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl transition shadow-xs inline-flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-50"
               >
-                Abrir em Nova Aba ↗
+                {loading ? 'Conectando...' : 'Sincronizar com o Google'}
               </button>
             </div>
-          )}
-
-          <div className="pt-2">
-            <button onClick={handleLogin} className="gsi-material-button mx-auto shadow-sm">
-              <div className="gsi-material-button-state"></div>
-              <div className="gsi-material-button-content-wrapper">
-                <div className="gsi-material-button-icon">
-                  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block' }}>
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                    <path fill="none" d="M0 0h48v48H0z"></path>
-                  </svg>
-                </div>
-                <span className="gsi-material-button-contents">Entrar com o Google</span>
-              </div>
-            </button>
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            {/* Range Toggle & Sync Button */}
-            <div className="flex items-center justify-between bg-white p-3 border border-slate-200 rounded-2xl shadow-xs">
-              <div className="flex bg-slate-100 p-0.5 rounded-xl">
-                <button
-                  onClick={() => setRangeType('today')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    rangeType === 'today'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  Hoje
-                </button>
-                <button
-                  onClick={() => setRangeType('week')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    rangeType === 'week'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  7 Dias
-                </button>
-                <button
-                  onClick={() => setRangeType('month')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    rangeType === 'month'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  Mensal
-                </button>
-              </div>
+      )}
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Range Toggle & Sync Button */}
+          <div className="flex items-center justify-between bg-white p-3 border border-slate-200 rounded-2xl shadow-xs">
+            <div className="flex bg-slate-100 p-0.5 rounded-xl">
               <button
-                onClick={fetchCalendarEvents}
-                disabled={loading}
-                className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50 transition cursor-pointer"
-                title="Sincronizar novamente"
+                onClick={() => setRangeType('today')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  rangeType === 'today'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
               >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                Hoje
+              </button>
+              <button
+                onClick={() => setRangeType('week')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  rangeType === 'week'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                7 Dias
+              </button>
+              <button
+                onClick={() => setRangeType('month')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  rangeType === 'month'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Mensal
               </button>
             </div>
+
+            <button
+              onClick={fetchCalendarEvents}
+              disabled={loading || !accessToken}
+              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50 transition cursor-pointer flex items-center gap-1 px-3 text-xs font-semibold"
+              title="Sincronizar novamente"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Atualizar Agenda</span>
+            </button>
+          </div>
 
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-800 rounded-2xl p-4 text-xs">
@@ -661,33 +646,41 @@ export default function CalendarSection({
 
           {/* Quick Stats sidebar */}
           <div className="space-y-4">
-            <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <img
-                  src={user.photoURL || undefined}
-                  alt={user.displayName || 'Google User'}
-                  referrerPolicy="no-referrer"
-                  className="w-10 h-10 rounded-full border border-slate-100"
-                />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">{user.displayName}</h4>
-                  <p className="text-[10px] text-slate-500">{user.email}</p>
+            {user && (
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || 'Google User'}
+                      referrerPolicy="no-referrer"
+                      className="w-10 h-10 rounded-full border border-slate-100 object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                      {user.displayName?.[0] || 'U'}
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">{user.displayName || 'Usuário Google'}</h4>
+                    <p className="text-[10px] text-slate-500">{user.email}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-500">
-                  <span>Eventos listados:</span>
-                  <span className="font-semibold text-slate-800">{events.length}</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Concluídos:</span>
-                  <span className="font-semibold text-emerald-600">
-                    {events.filter(e => isEventChecked(e.id, e.start.dateTime || e.start.date || '')).length}
-                  </span>
+                <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Eventos listados:</span>
+                    <span className="font-semibold text-slate-800">{events.length}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Concluídos:</span>
+                    <span className="font-semibold text-emerald-600">
+                      {events.filter(e => isEventChecked(e.id, e.start.dateTime || e.start.date || '')).length}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
@@ -700,7 +693,6 @@ export default function CalendarSection({
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }

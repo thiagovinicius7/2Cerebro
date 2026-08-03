@@ -42,6 +42,7 @@ import NotesSection from './components/NotesSection';
 import BillsSection from './components/BillsSection';
 import HabitsSection from './components/HabitsSection';
 import ChecklistsSection from './components/ChecklistsSection';
+import WeeklyOverview from './components/WeeklyOverview';
 
 // Helper functions to merge local and cloud states on login/first load
 const mergeRoutines = (local: RoutineItem[], cloud: RoutineItem[]): RoutineItem[] => {
@@ -675,14 +676,17 @@ export default function App() {
       if (!accessToken) return;
       setDashLoading(true);
       try {
-        const todayMin = new Date();
-        todayMin.setHours(0, 0, 0, 0);
-        const todayMax = new Date();
-        todayMax.setHours(23, 59, 59, 999);
+        const rangeMin = new Date();
+        rangeMin.setDate(rangeMin.getDate() - 14);
+        rangeMin.setHours(0, 0, 0, 0);
+
+        const rangeMax = new Date();
+        rangeMax.setDate(rangeMax.getDate() + 21);
+        rangeMax.setHours(23, 59, 59, 999);
 
         const params = new URLSearchParams({
-          timeMin: todayMin.toISOString(),
-          timeMax: todayMax.toISOString(),
+          timeMin: rangeMin.toISOString(),
+          timeMax: rangeMax.toISOString(),
           singleEvents: 'true',
           orderBy: 'startTime',
         });
@@ -1050,6 +1054,23 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Visão Semanal Combinada */}
+                <WeeklyOverview
+                  events={dashEvents}
+                  dashLoading={dashLoading}
+                  routine={routine}
+                  setRoutine={setRoutine}
+                  bills={bills}
+                  setBills={setBills}
+                  habits={habits}
+                  setHabits={setHabits}
+                  calendarTicks={calendarTicks}
+                  setCalendarTicks={setCalendarTicks}
+                  addToast={addToast}
+                  accessToken={accessToken}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
+                />
 
                 {/* Bento Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-stretch">

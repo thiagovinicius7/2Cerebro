@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { initAuth, db, googleSignIn, logout, clearGoogleTokenOn401 } from './firebase';
+import { initAuth, db, googleSignIn, logout, clearGoogleTokenOn401, setCachedAccessToken } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { RoutineItem, Note, Bill, Habit, Checklist, CalendarTickState, GoogleCalendarEvent } from './types';
 import {
@@ -439,6 +439,7 @@ export default function App() {
 
             if (data.googleAccessToken && data.googleAccessToken !== accessToken) {
               setAccessToken(data.googleAccessToken);
+              setCachedAccessToken(data.googleAccessToken);
             }
 
             if (!hasInitialLoadRef.current) {

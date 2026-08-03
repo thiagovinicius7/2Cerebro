@@ -55,7 +55,7 @@ const getStoredToken = (): string | null => {
   }
 };
 
-const saveStoredToken = (token: string) => {
+export const saveStoredToken = (token: string) => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, encryptToken(token));
@@ -63,6 +63,11 @@ const saveStoredToken = (token: string) => {
   } catch (e) {
     console.warn('localStorage write blocked in this iframe context:', e);
   }
+};
+
+export const setCachedAccessToken = (token: string) => {
+  cachedAccessToken = token;
+  saveStoredToken(token);
 };
 
 const clearStoredToken = () => {

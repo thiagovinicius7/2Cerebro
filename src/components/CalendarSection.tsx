@@ -348,10 +348,9 @@ export default function CalendarSection({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-lg font-display font-semibold text-slate-900">Conecte seu Google Agenda</h3>
+            <h3 className="text-lg font-display font-semibold text-slate-900">Login Único com o Google</h3>
             <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-              Integre sua agenda de trabalho e compromissos diretamente no seu Segundo Cérebro. 
-              Ao conectar, seus eventos aparecerão como uma lista interativa onde você pode dar check-off à medida que os cumpre!
+              Ao acessar com sua Conta Google, o sistema conecta automaticamente seu perfil, salva seus dados na nuvem e sincroniza os compromissos da sua Google Agenda de forma instantânea e segura, sem necessidade de reconectar!
             </p>
           </div>
 

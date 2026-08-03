@@ -43,6 +43,7 @@ import BillsSection from './components/BillsSection';
 import HabitsSection from './components/HabitsSection';
 import ChecklistsSection from './components/ChecklistsSection';
 import WeeklyOverview from './components/WeeklyOverview';
+import LoginScreen from './components/LoginScreen';
 
 // Helper functions to merge local and cloud states on login/first load
 const mergeRoutines = (local: RoutineItem[], cloud: RoutineItem[]): RoutineItem[] => {
@@ -624,18 +625,25 @@ export default function App() {
   const [dashEvents, setDashEvents] = useState<GoogleCalendarEvent[]>([]);
   const [dashLoading, setDashLoading] = useState(false);
 
+  // Auth initializing & guest mode states
+  const [authInitializing, setAuthInitializing] = useState(true);
+  const [guestMode, setGuestMode] = useState(false);
+
   // Initialize Auth
   useEffect(() => {
-    initAuth(
+    const unsub = initAuth(
       (currentUser, token) => {
         setUser(currentUser);
         setAccessToken(token);
+        setAuthInitializing(false);
       },
       () => {
         setUser(null);
         setAccessToken(null);
+        setAuthInitializing(false);
       }
     );
+    return () => unsub();
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -664,7 +672,8 @@ export default function App() {
       await logout();
       setUser(null);
       setAccessToken(null);
-      addToast('Sincronização desativada. Seus dados continuam salvos localmente.', 'info');
+      setGuestMode(false);
+      addToast('Sessão encerrada com sucesso.', 'info');
     } catch (err) {
       console.error(err);
       addToast('Erro ao desconectar conta.', 'error');
@@ -823,6 +832,31 @@ export default function App() {
     setQuickNoteText('');
     addToast('Nota rápida capturada!', 'success');
   };
+
+  if (authInitializing) {
+    return (
+      <div className="min-h-screen bg-[#F1F3F6] flex flex-col justify-center items-center font-sans text-slate-700 p-4">
+        <div className="p-4 rounded-3xl bg-indigo-50 text-indigo-600 animate-pulse mb-3 flex items-center justify-center">
+          <Brain size={36} />
+        </div>
+        <p className="text-sm font-bold text-slate-800">Iniciando Meu Segundo Cérebro...</p>
+        <p className="text-xs text-slate-400 mt-1">Carregando dados com segurança</p>
+      </div>
+    );
+  }
+
+  if (!user && !guestMode) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(u, token) => {
+          setUser(u);
+          setAccessToken(token);
+        }}
+        onContinueOffline={() => setGuestMode(true)}
+        addToast={addToast}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F1F3F6] text-slate-800 font-sans flex flex-col selection:bg-indigo-100 selection:text-indigo-900">

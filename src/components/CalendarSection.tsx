@@ -142,7 +142,7 @@ export default function CalendarSection({
         } catch (err) {
           console.error(err);
         }
-        throw new Error('Sessão expirada. Por favor, conecte novamente com o Google.');
+        return;
       }
 
       // Fetch events for each calendar in parallel

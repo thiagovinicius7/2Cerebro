@@ -6,6 +6,7 @@ export interface RoutineItem {
   title: string;
   description?: string;
   done: boolean;
+  history?: Record<string, boolean>; // dateStr ("YYYY-MM-DD") -> done
 }
 
 export interface GoogleCalendarEvent {

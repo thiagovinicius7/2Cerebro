@@ -124,12 +124,14 @@ export default function WeeklyOverview({
   };
 
   // 2. Toggle Routine item done state
-  const handleToggleRoutine = (routineId: string, title: string) => {
+  const handleToggleRoutine = (routineId: string, title: string, dateStr: string) => {
     setRoutine(prev => prev.map(r => {
       if (r.id === routineId) {
-        const done = !r.done;
+        const wasDone = r.history && typeof r.history[dateStr] === 'boolean' ? r.history[dateStr] : false;
+        const done = !wasDone;
+        const newHistory = { ...(r.history || {}), [dateStr]: done };
         addToast?.(done ? `Rotina "${title}" concluída! ✓` : `Rotina "${title}" desmarcada`, done ? 'success' : 'info');
-        return { ...r, done };
+        return { ...r, done, history: newHistory };
       }
       return r;
     }));
@@ -211,15 +213,16 @@ export default function WeeklyOverview({
     if (categoryFilter === 'all' || categoryFilter === 'routine') {
       const dayRoutine = routine.filter(r => r.dayOfWeek === dayOfWeek);
       dayRoutine.forEach(r => {
+        const isDone = r.history && typeof r.history[dateStr] === 'boolean' ? r.history[dateStr] : false;
         items.push({
-          id: `rout-${r.id}`,
+          id: `rout-${r.id}-${dateStr}`,
           type: 'routine',
           title: r.title,
           subtitle: r.description,
           time: r.time + (r.endTime ? ` - ${r.endTime}` : ''),
-          done: r.done,
+          done: isDone,
           badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-          onToggle: () => handleToggleRoutine(r.id, r.title),
+          onToggle: () => handleToggleRoutine(r.id, r.title, dateStr),
         });
       });
     }

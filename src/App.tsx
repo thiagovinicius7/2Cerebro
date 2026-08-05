@@ -52,11 +52,19 @@ const mergeRoutines = (local: RoutineItem[], cloud: RoutineItem[]): RoutineItem[
   const merged = [...safeCloud];
   safeLocal.forEach(localItem => {
     if (!localItem) return;
-    const exists = merged.some(cloudItem => 
+    const cloudIndex = merged.findIndex(cloudItem => 
       cloudItem && (cloudItem.id === localItem.id || 
       (cloudItem.dayOfWeek === localItem.dayOfWeek && cloudItem.title === localItem.title && cloudItem.time === localItem.time))
     );
-    if (!exists) {
+    if (cloudIndex > -1) {
+      merged[cloudIndex] = {
+        ...merged[cloudIndex],
+        history: {
+          ...(merged[cloudIndex]?.history || {}),
+          ...(localItem.history || {})
+        }
+      };
+    } else {
       merged.push(localItem);
     }
   });
@@ -790,8 +798,9 @@ export default function App() {
 
   // Calculate stats for Dashboard
   const todayDayOfWeek = new Date().getDay();
+  const todayDateStr = new Date().toISOString().split('T')[0];
   const todayRoutine = routine.filter(item => item.dayOfWeek === todayDayOfWeek);
-  const todayRoutineCompleted = todayRoutine.filter(i => i.done).length;
+  const todayRoutineCompleted = todayRoutine.filter(i => i.history?.[todayDateStr] ?? false).length;
 
   const totalUnpaidBills = bills.filter(b => !b.paid).reduce((acc, b) => acc + b.amount, 0);
 

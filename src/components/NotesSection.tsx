@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Note, NoteMedia, RoutineItem, GoogleCalendarEvent } from '../types';
-import { Plus, Trash2, Search, Link2, Image, Video, Paperclip, ExternalLink, Calendar, HelpCircle, FileText, Sparkles, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, Trash2, Search, Link2, Image, Video, Paperclip, ExternalLink, Calendar, HelpCircle, FileText, Sparkles, ChevronDown, ChevronRight, Pencil, Share2, Copy, Check, Send, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NotesSectionProps {
@@ -19,6 +19,61 @@ export default function NotesSection({ notes, setNotes, routine, calendarEvents,
   const [content, setContent] = useState('');
   const [noteCategory, setNoteCategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [sharingNote, setSharingNote] = useState<Note | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const formatNoteShareText = (note: Note) => {
+    let text = `📌 *${note.title}*\n\n${note.content}`;
+    if (note.category) {
+      text += `\n\n📁 Categoria: ${note.category}`;
+    }
+    if (note.media && note.media.length > 0) {
+      text += `\n\n🔗 Anexos:`;
+      note.media.forEach(m => {
+        text += `\n• ${m.name}: ${m.url}`;
+      });
+    }
+    text += `\n\n— Compartilhado via Meu Segundo Cérebro 🧠`;
+    return text;
+  };
+
+  const handleNativeShare = async (note: Note) => {
+    const text = formatNoteShareText(note);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: note.title,
+          text: text,
+        });
+        addToast?.('Nota compartilhada com sucesso! 🚀', 'success');
+        setSharingNote(null);
+      } catch (err) {
+        // User cancelled share
+      }
+    } else {
+      handleCopyNote(note);
+    }
+  };
+
+  const handleCopyNote = (note: Note) => {
+    const text = formatNoteShareText(note);
+    navigator.clipboard.writeText(text);
+    setCopiedId(note.id);
+    addToast?.('Texto da nota copiado para a área de transferência! 📋', 'success');
+    setTimeout(() => setCopiedId(null), 2500);
+  };
+
+  const handleWhatsAppShare = (note: Note) => {
+    const text = formatNoteShareText(note);
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    setSharingNote(null);
+  };
+
+  const handleEmailShare = (note: Note) => {
+    const text = formatNoteShareText(note);
+    window.open(`mailto:?subject=${encodeURIComponent(note.title)}&body=${encodeURIComponent(text)}`, '_blank');
+    setSharingNote(null);
+  };
 
   const handleOpenAdd = () => {
     setEditingNoteId(null);
@@ -324,6 +379,13 @@ export default function NotesSection({ notes, setNotes, routine, calendarEvents,
                                   </h3>
                                   <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 opacity-100 shrink-0">
                                     <button
+                                      onClick={() => setSharingNote(note)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition cursor-pointer"
+                                      title="Compartilhar Nota"
+                                    >
+                                      <Share2 size={14} />
+                                    </button>
+                                    <button
                                       onClick={() => handleOpenEdit(note)}
                                       className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition cursor-pointer"
                                       title="Editar Nota"
@@ -333,6 +395,7 @@ export default function NotesSection({ notes, setNotes, routine, calendarEvents,
                                     <button
                                       onClick={() => handleDeleteNote(note.id)}
                                       className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-50 transition cursor-pointer"
+                                      title="Excluir Nota"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -623,6 +686,84 @@ export default function NotesSection({ notes, setNotes, routine, calendarEvents,
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Share Note Modal */}
+      {sharingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl max-w-sm w-full border border-slate-100 shadow-xl overflow-hidden p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-display font-semibold text-base text-slate-900 flex items-center gap-2">
+                <Share2 size={18} className="text-indigo-600" />
+                Compartilhar Nota
+              </h3>
+              <button
+                onClick={() => setSharingNote(null)}
+                className="text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-1">
+              <p className="font-bold text-xs text-slate-800 truncate">{sharingNote.title}</p>
+              <p className="text-[11px] text-slate-500 line-clamp-3 leading-relaxed">{sharingNote.content}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 pt-1">
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
+                <button
+                  type="button"
+                  onClick={() => handleNativeShare(sharingNote)}
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                >
+                  <Share2 size={15} />
+                  Compartilhar no Aparelho
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleWhatsAppShare(sharingNote)}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              >
+                <Send size={15} />
+                Enviar pelo WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCopyNote(sharingNote)}
+                className="w-full py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {copiedId === sharingNote.id ? (
+                  <>
+                    <Check size={15} className="text-emerald-600" />
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy size={15} className="text-slate-500" />
+                    Copiar Texto da Nota
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleEmailShare(sharingNote)}
+                className="w-full py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Mail size={15} className="text-slate-500" />
+                Enviar por E-mail
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

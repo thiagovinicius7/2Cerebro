@@ -206,6 +206,9 @@ export default function App() {
   const [calendarTicks, setCalendarTicks] = useState<CalendarTickState[]>(() =>
     getLocalStorageData('brain_calendar_ticks', [])
   );
+  const [customEvents, setCustomEvents] = useState<GoogleCalendarEvent[]>(() =>
+    getLocalStorageData('brain_custom_events', [])
+  );
 
   // Notification states
   const [remindersEnabled, setRemindersEnabled] = useState<boolean>(() =>
@@ -259,6 +262,10 @@ export default function App() {
   useEffect(() => {
     setLocalStorageData('brain_calendar_ticks', calendarTicks);
   }, [calendarTicks]);
+
+  useEffect(() => {
+    setLocalStorageData('brain_custom_events', customEvents);
+  }, [customEvents]);
 
   // Sync notification states to localStorage
   useEffect(() => {
@@ -1102,6 +1109,7 @@ export default function App() {
                 {/* Visão Semanal Combinada */}
                 <WeeklyOverview
                   events={dashEvents}
+                  customEvents={customEvents}
                   dashLoading={dashLoading}
                   routine={routine}
                   setRoutine={setRoutine}
@@ -1133,26 +1141,54 @@ export default function App() {
                       </div>
 
                       <div className="space-y-2.5 overflow-y-auto max-h-[220px] pr-1">
-                        {!accessToken ? (
-                          <div className="text-center py-10 text-xs text-slate-400 font-medium">
-                            Conecte sua conta Google Agenda para sincronizar seus compromissos.
-                            <button
-                              onClick={() => setActiveTab('calendar')}
-                              className="block mx-auto mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-3 py-1.5 rounded-xl transition text-[10px]"
-                            >
-                              Conectar Agora
-                            </button>
-                          </div>
-                        ) : dashLoading ? (
-                          <div className="text-center py-12 text-xs text-slate-400 font-mono animate-pulse">
-                            Carregando eventos...
-                          </div>
-                        ) : dashEvents.length === 0 ? (
-                          <div className="text-center py-12 text-xs text-slate-400 italic">
-                            Nenhum evento agendado para hoje.
-                          </div>
-                        ) : (
-                          dashEvents.map(event => {
+                        {(() => {
+                          const today = new Date();
+                          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                          const todayCustom = customEvents.filter(e => {
+                            if (e.start.date) return e.start.date === todayStr;
+                            if (e.start.dateTime) {
+                              const d = new Date(e.start.dateTime);
+                              const y = d.getFullYear();
+                              const m = String(d.getMonth() + 1).padStart(2, '0');
+                              const day = String(d.getDate()).padStart(2, '0');
+                              return `${y}-${m}-${day}` === todayStr;
+                            }
+                            return false;
+                          });
+
+                          const combinedToday = [...dashEvents, ...todayCustom];
+
+                          if (!accessToken && combinedToday.length === 0) {
+                            return (
+                              <div className="text-center py-10 text-xs text-slate-400 font-medium">
+                                Conecte sua conta Google Agenda ou crie um evento local.
+                                <button
+                                  onClick={() => setActiveTab('calendar')}
+                                  className="block mx-auto mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-3 py-1.5 rounded-xl transition text-[10px]"
+                                >
+                                  Ir para Agenda
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (dashLoading && combinedToday.length === 0) {
+                            return (
+                              <div className="text-center py-12 text-xs text-slate-400 font-mono animate-pulse">
+                                Carregando eventos...
+                              </div>
+                            );
+                          }
+
+                          if (combinedToday.length === 0) {
+                            return (
+                              <div className="text-center py-12 text-xs text-slate-400 italic">
+                                Nenhum evento agendado para hoje.
+                              </div>
+                            );
+                          }
+
+                          return combinedToday.map(event => {
                             const dateStr = event.start.date || (event.start.dateTime ? (() => {
                               const d = new Date(event.start.dateTime);
                               const year = d.getFullYear();
@@ -1214,8 +1250,8 @@ export default function App() {
                                 </div>
                               </div>
                             );
-                          })
-                        )}
+                          });
+                        })()}
                       </div>
                     </div>
 
@@ -1690,6 +1726,8 @@ export default function App() {
                 setAccessToken={setAccessToken}
                 calendarTicks={calendarTicks}
                 setCalendarTicks={setCalendarTicks}
+                customEvents={customEvents}
+                setCustomEvents={setCustomEvents}
                 addToast={addToast}
               />
             )}

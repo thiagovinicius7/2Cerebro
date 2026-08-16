@@ -18,6 +18,7 @@ import {
 
 interface WeeklyOverviewProps {
   events: GoogleCalendarEvent[];
+  customEvents?: GoogleCalendarEvent[];
   dashLoading: boolean;
   routine: RoutineItem[];
   setRoutine: React.Dispatch<React.SetStateAction<RoutineItem[]>>;
@@ -44,6 +45,7 @@ const WEEKDAYS_NAMES = [
 
 export default function WeeklyOverview({
   events,
+  customEvents = [],
   dashLoading,
   routine,
   setRoutine,
@@ -166,7 +168,7 @@ export default function WeeklyOverview({
   const getDayItems = (dateStr: string, dayOfWeek: number) => {
     const items: Array<{
       id: string;
-      type: 'event' | 'routine' | 'bill' | 'habit';
+      type: 'event' | 'routine' | 'bill' | 'habit' | 'coincident';
       title: string;
       subtitle?: string;
       time?: string;
@@ -176,21 +178,87 @@ export default function WeeklyOverview({
       onToggle: () => void;
     }> = [];
 
-    // A. Eventos do Google Agenda
-    if (categoryFilter === 'all' || categoryFilter === 'events') {
-      const dayEvts = events.filter(e => {
-        if (e.start.date) return e.start.date === dateStr;
-        if (e.start.dateTime) {
-          const d = new Date(e.start.dateTime);
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${y}-${m}-${day}` === dateStr;
-        }
-        return false;
-      });
+    const allEventsList = [...events, ...customEvents];
 
+    // Filter events for this specific dateStr
+    const dayEvts = allEventsList.filter(e => {
+      if (e.start.date) return e.start.date === dateStr;
+      if (e.start.dateTime) {
+        const d = new Date(e.start.dateTime);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}` === dateStr;
+      }
+      return false;
+    });
+
+    // Filter routines for this dayOfWeek
+    const dayRoutine = routine.filter(r => r.dayOfWeek === dayOfWeek);
+
+    const matchedEvtIds = new Set<string>();
+    const matchedRoutineIds = new Set<string>();
+
+    const clean = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+    // Coincidence detection (if viewing all or filtering events/routine)
+    if (categoryFilter === 'all' || categoryFilter === 'events' || categoryFilter === 'routine') {
       dayEvts.forEach(evt => {
+        const evtTitleClean = clean(evt.summary);
+        let evtTimeStr = '';
+        if (evt.start.dateTime) {
+          const d = new Date(evt.start.dateTime);
+          evtTimeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        dayRoutine.forEach(r => {
+          if (matchedEvtIds.has(evt.id) || matchedRoutineIds.has(r.id)) return;
+
+          const routTitleClean = clean(r.title);
+          const sameTitle = evtTitleClean.length >= 3 && routTitleClean.length >= 3 &&
+            (evtTitleClean.includes(routTitleClean) || routTitleClean.includes(evtTitleClean));
+          
+          const sameTime = evtTimeStr && r.time && evtTimeStr === r.time;
+
+          // Merge if matching title or matching title/time
+          if (sameTitle || (sameTime && (evtTitleClean.includes(routTitleClean) || routTitleClean.includes(evtTitleClean)))) {
+            matchedEvtIds.add(evt.id);
+            matchedRoutineIds.add(r.id);
+
+            const isCheckedEvt = calendarTicks.some(t => t.eventId === evt.id && t.dateStr === dateStr && t.done);
+            const isDoneRoutine = r.history && typeof r.history[dateStr] === 'boolean' ? r.history[dateStr] : false;
+            const isDone = isCheckedEvt || isDoneRoutine;
+
+            let timeLabel = 'Horário Agendado';
+            if (evt.start.dateTime) {
+              timeLabel = new Date(evt.start.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            } else if (r.time) {
+              timeLabel = r.time + (r.endTime ? ` - ${r.endTime}` : '');
+            }
+
+            items.push({
+              id: `coincide-${evt.id}-${r.id}-${dateStr}`,
+              type: 'coincident',
+              title: evt.summary || r.title,
+              subtitle: `✨ Unificado: Rotina & Evento Agenda`,
+              time: timeLabel,
+              done: isDone,
+              badgeColor: 'bg-purple-50 text-purple-800 border-purple-200 font-bold',
+              onToggle: () => {
+                handleToggleEvent(evt.id, dateStr, evt.summary);
+                handleToggleRoutine(r.id, r.title, dateStr);
+              },
+            });
+          }
+        });
+      });
+    }
+
+    // A. Eventos do Google Agenda e Pessoais (Unmatched)
+    if (categoryFilter === 'all' || categoryFilter === 'events') {
+      dayEvts.forEach(evt => {
+        if (matchedEvtIds.has(evt.id)) return;
         const isChecked = calendarTicks.some(t => t.eventId === evt.id && t.dateStr === dateStr && t.done);
         let timeStr = 'Dia inteiro';
         if (evt.start.dateTime) {
@@ -200,7 +268,7 @@ export default function WeeklyOverview({
           id: `evt-${evt.id}-${dateStr}`,
           type: 'event',
           title: evt.summary,
-          subtitle: evt.calendarName || 'Agenda Google',
+          subtitle: evt.calendarName || 'Agenda',
           time: timeStr,
           done: isChecked,
           badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -209,10 +277,10 @@ export default function WeeklyOverview({
       });
     }
 
-    // B. Rotina Semanal
+    // B. Rotina Semanal (Unmatched)
     if (categoryFilter === 'all' || categoryFilter === 'routine') {
-      const dayRoutine = routine.filter(r => r.dayOfWeek === dayOfWeek);
       dayRoutine.forEach(r => {
+        if (matchedRoutineIds.has(r.id)) return;
         const isDone = r.history && typeof r.history[dateStr] === 'boolean' ? r.history[dateStr] : false;
         items.push({
           id: `rout-${r.id}-${dateStr}`,
@@ -557,6 +625,7 @@ export default function WeeklyOverview({
                               {item.type === 'routine' && 'Rotina'}
                               {item.type === 'bill' && 'Conta'}
                               {item.type === 'habit' && 'Hábito'}
+                              {item.type === 'coincident' && 'Rotina + Agenda'}
                             </span>
                             {item.time && (
                               <span className="text-[9px] font-mono font-semibold text-slate-500 truncate">

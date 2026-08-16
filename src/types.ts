@@ -23,6 +23,7 @@ export interface GoogleCalendarEvent {
   description?: string;
   location?: string;
   calendarName?: string;
+  isCustom?: boolean;
 }
 
 export interface CalendarTickState {

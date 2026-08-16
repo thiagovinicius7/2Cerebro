@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleCalendarEvent, CalendarTickState } from '../types';
 import { googleSignIn, logout, getAccessToken } from '../firebase';
-import { Calendar, CheckCircle2, Circle, LogOut, RefreshCw, Clock, MapPin, Sparkles, CheckSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, LogOut, RefreshCw, Clock, MapPin, Sparkles, CheckSquare, ChevronLeft, ChevronRight, Plus, Trash2, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from 'firebase/auth';
 
@@ -12,6 +12,8 @@ interface CalendarSectionProps {
   setAccessToken: (token: string | null) => void;
   calendarTicks: CalendarTickState[];
   setCalendarTicks: React.Dispatch<React.SetStateAction<CalendarTickState[]>>;
+  customEvents: GoogleCalendarEvent[];
+  setCustomEvents: React.Dispatch<React.SetStateAction<GoogleCalendarEvent[]>>;
   addToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
@@ -22,6 +24,8 @@ export default function CalendarSection({
   setAccessToken,
   calendarTicks,
   setCalendarTicks,
+  customEvents = [],
+  setCustomEvents,
   addToast,
 }: CalendarSectionProps) {
   const [events, setEvents] = useState<GoogleCalendarEvent[]>([]);
@@ -33,6 +37,107 @@ export default function CalendarSection({
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
+
+  // Modal State for creating new event
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDate, setEventDate] = useState(selectedDate);
+  const [eventIsAllDay, setEventIsAllDay] = useState(false);
+  const [eventStartTime, setEventStartTime] = useState('09:00');
+  const [eventEndTime, setEventEndTime] = useState('10:00');
+  const [eventLocation, setEventLocation] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
+
+  // Keep eventDate in sync when user clicks a date in calendar
+  useEffect(() => {
+    setEventDate(selectedDate);
+  }, [selectedDate]);
+
+  // Combine Google Calendar events and Custom user created events
+  const combinedEvents = React.useMemo(() => {
+    const map = new Map<string, GoogleCalendarEvent>();
+    events.forEach(e => map.set(e.id, e));
+    (customEvents || []).forEach(e => map.set(e.id, e));
+    return Array.from(map.values()).sort((a, b) => {
+      const startA = a.start.dateTime || a.start.date || '';
+      const startB = b.start.dateTime || b.start.date || '';
+      return startA.localeCompare(startB);
+    });
+  }, [events, customEvents]);
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventTitle.trim()) {
+      addToast?.('Por favor, informe o título do evento.', 'error');
+      return;
+    }
+
+    const id = `custom-evt-${Date.now()}`;
+    let startObj: { dateTime?: string; date?: string } = {};
+    let endObj: { dateTime?: string; date?: string } = {};
+
+    if (eventIsAllDay) {
+      startObj = { date: eventDate };
+      endObj = { date: eventDate };
+    } else {
+      startObj = { dateTime: new Date(`${eventDate}T${eventStartTime}:00`).toISOString() };
+      endObj = { dateTime: new Date(`${eventDate}T${eventEndTime}:00`).toISOString() };
+    }
+
+    const newEvt: GoogleCalendarEvent = {
+      id,
+      summary: eventTitle.trim(),
+      start: startObj,
+      end: endObj,
+      location: eventLocation.trim() || undefined,
+      description: eventDescription.trim() || undefined,
+      calendarName: 'Agenda Pessoal',
+      isCustom: true,
+    };
+
+    setCustomEvents(prev => [newEvt, ...(prev || [])]);
+
+    // If Google token exists, try adding to Google Calendar as well
+    if (accessToken) {
+      try {
+        const bodyPayload: any = {
+          summary: eventTitle.trim(),
+          description: eventDescription.trim() || undefined,
+          location: eventLocation.trim() || undefined,
+          start: startObj,
+          end: endObj,
+        };
+        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyPayload)
+        });
+        if (res.ok) {
+          addToast?.('Evento inserido no Google Agenda e salvo localmente! 📅✨', 'success');
+        } else {
+          addToast?.('Evento salvo no aplicativo! 📅', 'success');
+        }
+      } catch (err) {
+        addToast?.('Evento salvo localmente com sucesso! 📅', 'success');
+      }
+    } else {
+      addToast?.('Evento inserido na sua agenda! 📅', 'success');
+    }
+
+    // Reset Form
+    setEventTitle('');
+    setEventLocation('');
+    setEventDescription('');
+    setIsAddingEvent(false);
+  };
+
+  const handleDeleteCustomEvent = (id: string) => {
+    setCustomEvents(prev => prev.filter(e => e.id !== id));
+    addToast?.('Evento removido da agenda.', 'info');
+  };
 
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
@@ -336,15 +441,25 @@ export default function CalendarSection({
           </p>
         </div>
 
-        {user && (
+        <div className="flex items-center gap-2 self-start flex-wrap">
           <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-2 border border-slate-200 hover:border-red-200 hover:bg-red-50 text-slate-600 hover:text-red-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer self-start"
+            onClick={() => setIsAddingEvent(true)}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
           >
-            <LogOut size={14} />
-            Desconectar
+            <CalendarPlus size={15} />
+            Inserir Evento
           </button>
-        )}
+
+          {user && (
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 border border-slate-200 hover:border-red-200 hover:bg-red-50 text-slate-600 hover:text-red-700 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
+            >
+              <LogOut size={14} />
+              Desconectar
+            </button>
+          )}
+        </div>
       </div>
 
       {(!accessToken || error) && (
@@ -599,18 +714,30 @@ export default function CalendarSection({
                         </button>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="font-mono text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-sm">
-                              {formatEventDate(event.start.dateTime, event.start.date)}
-                            </span>
-                            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-sm font-semibold">
-                              <Clock size={10} />
-                              {formatEventTime(event)}
-                            </span>
-                            {event.calendarName && (
-                              <span className="font-sans text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-sm font-semibold">
-                                {event.calendarName}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="font-mono text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-sm">
+                                {formatEventDate(event.start.dateTime, event.start.date)}
                               </span>
+                              <span className="inline-flex items-center gap-1 font-mono text-[10px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-sm font-semibold">
+                                <Clock size={10} />
+                                {formatEventTime(event)}
+                              </span>
+                              {event.calendarName && (
+                                <span className="font-sans text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-sm font-semibold">
+                                  {event.calendarName}
+                                </span>
+                              )}
+                            </div>
+
+                            {event.isCustom && (
+                              <button
+                                onClick={() => handleDeleteCustomEvent(event.id)}
+                                className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-slate-100 transition cursor-pointer"
+                                title="Excluir Evento Pessoal"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             )}
                           </div>
 
@@ -693,6 +820,143 @@ export default function CalendarSection({
             </div>
           </div>
         </div>
+
+      {/* Modal for Creating New Calendar Event */}
+      {isAddingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl max-w-md w-full border border-slate-100 shadow-xl overflow-hidden p-6 space-y-4 my-8"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-display font-semibold text-base text-slate-900 flex items-center gap-2">
+                <CalendarPlus size={18} className="text-indigo-600" />
+                Inserir Evento na Agenda
+              </h3>
+              <button
+                onClick={() => setIsAddingEvent(false)}
+                className="text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Título do Evento *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Missa na Matriz, Consulta Médica..."
+                  value={eventTitle}
+                  onChange={e => setEventTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Data do Evento
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={eventDate}
+                    onChange={e => setEventDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-6">
+                  <input
+                    type="checkbox"
+                    id="isAllDay"
+                    checked={eventIsAllDay}
+                    onChange={e => setEventIsAllDay(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label htmlFor="isAllDay" className="text-xs font-medium text-slate-700 cursor-pointer">
+                    Dia inteiro
+                  </label>
+                </div>
+              </div>
+
+              {!eventIsAllDay && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Hora Início
+                    </label>
+                    <input
+                      type="time"
+                      value={eventStartTime}
+                      onChange={e => setEventStartTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Hora Término
+                    </label>
+                    <input
+                      type="time"
+                      value={eventEndTime}
+                      onChange={e => setEventEndTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Local (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Igreja Matriz, Escritório..."
+                  value={eventLocation}
+                  onChange={e => setEventLocation(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Descrição / Notas (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Levar documentos, chegar 15 minutos antes..."
+                  value={eventDescription}
+                  onChange={e => setEventDescription(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingEvent(false)}
+                  className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-600 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                >
+                  Salvar Evento
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

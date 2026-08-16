@@ -66,12 +66,14 @@ export interface Bill {
 export interface Habit {
   id: string;
   title: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'novena';
+  frequency: 'daily' | 'weekly' | 'monthly' | 'novena' | 'challenge';
   createdAt: string;
   novenaStart?: string; // YYYY-MM-DD (for 9-day novena)
   novenaStartDay?: number;
   novenaEndDay?: number;
   novenaRepeatMonthly?: boolean;
+  startDate?: string; // YYYY-MM-DD (for challenge / devotional with duration)
+  durationDays?: number; // Duration in days e.g. 40, 150
   history: Record<string, boolean>; // dateStr ("YYYY-MM-DD") -> done
   weekDays?: number[]; // Days of the week (0 = Sunday, 1 = Monday, etc.)
   time?: string; // e.g. "16:00"

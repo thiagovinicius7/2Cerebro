@@ -25,11 +25,13 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'novena'>('daily');
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'novena' | 'challenge'>('daily');
   const [novenaRepeatMonthly, setNovenaRepeatMonthly] = useState(true);
   const [novenaStartDay, setNovenaStartDay] = useState(9);
   const [novenaEndDay, setNovenaEndDay] = useState(17);
   const [novenaStart, setNovenaStart] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [durationDays, setDurationDays] = useState(40);
   const [weekDays, setWeekDays] = useState<number[]>([]);
   const [time, setTime] = useState('');
 
@@ -40,6 +42,8 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
     setFrequency('daily');
     setWeekDays([]);
     setTime('');
+    setStartDate(new Date().toISOString().split('T')[0]);
+    setDurationDays(40);
     setIsAdding(true);
   };
 
@@ -54,6 +58,8 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
     setNovenaStartDay(habit.novenaStartDay || 9);
     setNovenaEndDay(habit.novenaEndDay || 17);
     setNovenaStart(habit.novenaStart || new Date().toISOString().split('T')[0]);
+    setStartDate(habit.startDate || habit.createdAt.split('T')[0]);
+    setDurationDays(habit.durationDays || 40);
     setIsAdding(true);
   };
 
@@ -97,6 +103,8 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
               novenaStartDay: frequency === 'novena' && novenaRepeatMonthly ? novenaStartDay : undefined,
               novenaEndDay: frequency === 'novena' && novenaRepeatMonthly ? novenaEndDay : undefined,
               novenaRepeatMonthly: frequency === 'novena' ? novenaRepeatMonthly : undefined,
+              startDate: frequency === 'challenge' ? startDate : undefined,
+              durationDays: frequency === 'challenge' ? Number(durationDays) || 40 : undefined,
               weekDays: frequency === 'weekly' && weekDays.length > 0 ? weekDays : undefined,
               time: frequency !== 'novena' && time.trim() ? time.trim() : undefined,
               category: category.trim() || undefined,
@@ -116,6 +124,8 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
         novenaStartDay: frequency === 'novena' && novenaRepeatMonthly ? novenaStartDay : undefined,
         novenaEndDay: frequency === 'novena' && novenaRepeatMonthly ? novenaEndDay : undefined,
         novenaRepeatMonthly: frequency === 'novena' ? novenaRepeatMonthly : undefined,
+        startDate: frequency === 'challenge' ? startDate : undefined,
+        durationDays: frequency === 'challenge' ? Number(durationDays) || 40 : undefined,
         weekDays: frequency === 'weekly' && weekDays.length > 0 ? weekDays : undefined,
         time: frequency !== 'novena' && time.trim() ? time.trim() : undefined,
         history: {},
@@ -277,6 +287,191 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
     );
   };
 
+  // Helper to render Challenge / Devotional Tracker with custom duration & start date
+  const renderChallengeTracker = (habit: Habit) => {
+    const startDateStr = habit.startDate || habit.createdAt.split('T')[0];
+    const duration = habit.durationDays || 40;
+
+    const startParts = startDateStr.split('-').map(Number);
+    const startDateObj = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+
+    const endDateObj = new Date(startDateObj);
+    endDateObj.setDate(endDateObj.getDate() + duration - 1);
+
+    const formatDateObj = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const endDateStr = formatDateObj(endDateObj);
+
+    const now = new Date();
+    const todayStr = formatDateObj(now);
+    const todayObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = todayObj.getTime() - startDateObj.getTime();
+    const currentDayNumber = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // 1-based index
+
+    let completedCount = 0;
+    const daysList: { dayNumber: number; dateStr: string; isCompleted: boolean; isToday: boolean; isPast: boolean }[] = [];
+
+    for (let i = 0; i < duration; i++) {
+      const d = new Date(startDateObj);
+      d.setDate(d.getDate() + i);
+      const dStr = formatDateObj(d);
+      const isDone = !!habit.history[dStr];
+      if (isDone) completedCount++;
+
+      daysList.push({
+        dayNumber: i + 1,
+        dateStr: dStr,
+        isCompleted: isDone,
+        isToday: dStr === todayStr,
+        isPast: dStr < todayStr,
+      });
+    }
+
+    const percentage = Math.min(100, Math.round((completedCount / duration) * 100));
+    const isTodayDone = habit.history[todayStr] || false;
+
+    const toggleChallengeDay = (dStr: string) => {
+      setHabits(prev =>
+        prev.map(h => {
+          if (h.id === habit.id) {
+            const completed = h.history[dStr] || false;
+            const nextDone = !completed;
+            addToast?.(
+              nextDone ? `Hábito "${h.title}" marcado!` : `Hábito "${h.title}" desmarcado`,
+              nextDone ? 'success' : 'info'
+            );
+            return {
+              ...h,
+              history: {
+                ...h.history,
+                [dStr]: nextDone,
+              },
+            };
+          }
+          return h;
+        })
+      );
+    };
+
+    const formatDisplayDate = (dStr: string) => {
+      const p = dStr.split('-');
+      if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+      return dStr;
+    };
+
+    return (
+      <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-4 mt-3 space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <span className="text-[10px] font-mono text-amber-900 uppercase font-extrabold flex items-center gap-1.5">
+              <Sparkles size={12} className="text-amber-600" />
+              Desafio / Devocional ({duration} Dias)
+            </span>
+            <p className="text-[11px] text-amber-800 font-medium">
+              Início: <strong>{formatDisplayDate(startDateStr)}</strong> • Término: <strong>{formatDisplayDate(endDateStr)}</strong>
+            </p>
+          </div>
+
+          <div className="text-right self-start sm:self-auto">
+            <span className="text-xs font-bold text-amber-950 font-mono block">
+              {currentDayNumber < 1
+                ? `Inicia em ${Math.abs(currentDayNumber - 1)} dias`
+                : currentDayNumber > duration
+                ? 'Desafio Concluído! 🎉'
+                : `Dia ${currentDayNumber} de ${duration}`}
+            </span>
+            <span className="text-[10px] text-amber-800 font-mono">
+              {completedCount} de {duration} cumpridos ({percentage}%)
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="space-y-1">
+          <div className="w-full h-2.5 bg-amber-200/60 rounded-full overflow-hidden p-0.5 border border-amber-200/80">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full transition-all duration-500 shadow-2xs"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Action Button for Today */}
+        {currentDayNumber >= 1 && currentDayNumber <= duration && (
+          <div className="flex items-center justify-between bg-white border border-amber-200/90 p-2.5 rounded-xl shadow-3xs">
+            <span className="text-xs font-semibold text-slate-800 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+              Hoje é o <strong>Dia {currentDayNumber}</strong> do seu hábito ({formatDisplayDate(todayStr)})
+            </span>
+            <button
+              type="button"
+              onClick={() => toggleChallengeDay(todayStr)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                isTodayDone
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-2xs'
+              }`}
+            >
+              {isTodayDone ? (
+                <>
+                  <Check size={14} className="stroke-[3]" />
+                  Dia {currentDayNumber} Concluído!
+                </>
+              ) : (
+                <>
+                  <Play size={12} className="fill-current" />
+                  Marcar Hoje
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Compact Scrollable Day Grid */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-[10px] font-bold text-amber-900 uppercase font-mono">
+            <span>Acompanhamento dos {duration} Dias:</span>
+            <span className="text-amber-700">Clique para alternar o status</span>
+          </div>
+
+          <div className="max-h-36 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-amber-200">
+            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-1.5">
+              {daysList.map(item => (
+                <button
+                  key={item.dateStr}
+                  onClick={() => toggleChallengeDay(item.dateStr)}
+                  className={`p-1.5 rounded-lg flex flex-col items-center justify-center text-[10px] font-mono font-bold transition cursor-pointer border ${
+                    item.isCompleted
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-3xs'
+                      : item.isToday
+                      ? 'bg-amber-100 border-amber-400 text-amber-950 font-extrabold ring-1 ring-amber-400'
+                      : item.isPast
+                      ? 'bg-white border-amber-200/80 text-amber-900 hover:border-amber-400'
+                      : 'bg-white/60 border-amber-100 text-slate-400 hover:border-amber-300'
+                  }`}
+                  title={`Dia ${item.dayNumber} (${formatDisplayDate(item.dateStr)}) - ${item.isCompleted ? 'Concluído' : 'Pendente'}`}
+                >
+                  <span>D{item.dayNumber}</span>
+                  {item.isCompleted ? (
+                    <Check size={9} className="stroke-[3] mt-0.5" />
+                  ) : (
+                    <span className="text-[8px] opacity-75">{item.dateStr.split('-')[2]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div id="habits-section" className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -395,6 +590,7 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
                               const isWeekly = habit.frequency === 'weekly';
                               const isMonthly = habit.frequency === 'monthly';
                               const isNovena = habit.frequency === 'novena';
+                              const isChallenge = habit.frequency === 'challenge';
 
                               return (
                                 <motion.div
@@ -409,7 +605,9 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
                                       <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-extrabold uppercase ${
-                                            isNovena
+                                            isChallenge
+                                              ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                              : isNovena
                                               ? 'bg-indigo-100 text-indigo-900'
                                               : isDaily
                                               ? 'bg-blue-50 text-blue-800'
@@ -417,12 +615,20 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
                                               ? 'bg-purple-50 text-purple-800'
                                               : 'bg-emerald-50 text-emerald-800'
                                           }`}>
-                                            {isNovena ? 'Novena (9d)' : habit.frequency === 'daily' ? 'Diário' : habit.frequency === 'weekly' ? 'Semanal' : 'Mensal'}
+                                            {isChallenge
+                                              ? `Desafio (${habit.durationDays || 40}d)`
+                                              : isNovena
+                                              ? 'Novena (9d)'
+                                              : habit.frequency === 'daily'
+                                              ? 'Diário'
+                                              : habit.frequency === 'weekly'
+                                              ? 'Semanal'
+                                              : 'Mensal'}
                                           </span>
                                           <h4 className="text-sm font-semibold text-slate-900">{habit.title}</h4>
                                         </div>
 
-                                        {(!isNovena && (habit.weekDays || habit.time)) && (
+                                        {(!isNovena && !isChallenge && (habit.weekDays || habit.time)) && (
                                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             {habit.weekDays && habit.weekDays.length > 0 && (
                                               <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded font-medium">
@@ -460,7 +666,7 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
                                   </div>
 
                                   {/* Standard Habits Horizontal Bubble Row */}
-                                  {!isNovena && (
+                                  {!isNovena && !isChallenge && (
                                     <div className="mt-4 flex items-center justify-between overflow-x-auto pb-1 gap-2 scrollbar-none">
                                       {last7Days.map(day => {
                                         const { dayName, dateStr, dayNum } = formatDateLabel(day);
@@ -513,6 +719,9 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
 
                                   {/* Custom Novena Devotion Track */}
                                   {isNovena && renderNovenaTracker(habit)}
+
+                                  {/* Custom Challenge / Devotional Track */}
+                                  {isChallenge && renderChallengeTracker(habit)}
                                 </motion.div>
                               );
                             })}
@@ -587,22 +796,23 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Frequência / Tipo</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {(['daily', 'weekly', 'monthly', 'novena'] as const).map(freq => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
+                  {(['daily', 'weekly', 'monthly', 'novena', 'challenge'] as const).map(freq => (
                     <button
                       key={freq}
                       type="button"
                       onClick={() => setFrequency(freq)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition cursor-pointer capitalize ${
+                      className={`py-2 px-2 rounded-xl text-xs font-semibold border transition cursor-pointer capitalize ${
                         frequency === freq
-                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-3xs'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       {freq === 'daily' && 'Diário'}
                       {freq === 'weekly' && 'Semanal'}
                       {freq === 'monthly' && 'Mensal'}
-                      {freq === 'novena' && 'Novena (9 Dias)'}
+                      {freq === 'novena' && 'Novena (9d)'}
+                      {freq === 'challenge' && 'Desafio/Devocional'}
                     </button>
                   ))}
                 </div>
@@ -643,6 +853,66 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
                     onChange={e => setTime(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700"
                   />
+                </div>
+              )}
+
+              {frequency === 'challenge' && (
+                <div className="p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-3.5 animate-fade-in">
+                  <p className="text-xs font-bold text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-amber-600" />
+                    Configuração do Desafio / Devocional
+                  </p>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-700 uppercase mb-1">
+                      Data de Início
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-700 uppercase mb-1">
+                      Duração em Dias (ex: 40, 150)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      required
+                      value={durationDays}
+                      onChange={e => setDurationDays(Math.max(1, Number(e.target.value)))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white font-mono font-bold"
+                    />
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="text-[10px] text-slate-500 self-center font-medium mr-1">Atalhos:</span>
+                      {[
+                        { label: '21d', days: 21 },
+                        { label: '30d', days: 30 },
+                        { label: '40d (Quaresma)', days: 40 },
+                        { label: '90d', days: 90 },
+                        { label: '150d (Salmos)', days: 150 },
+                      ].map(preset => (
+                        <button
+                          key={preset.days}
+                          type="button"
+                          onClick={() => setDurationDays(preset.days)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                            durationDays === preset.days
+                              ? 'bg-amber-500 border-amber-600 text-white shadow-3xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-amber-300'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 

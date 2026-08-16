@@ -266,19 +266,45 @@ export default function WeeklyOverview({
             return dateStr >= startDate && dateStr <= endDateStr;
           }
         }
+        if (h.frequency === 'challenge') {
+          const startDate = h.startDate || h.createdAt.split('T')[0];
+          const duration = h.durationDays || 40;
+          const startParts = startDate.split('-').map(Number);
+          const startDateObj = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+          const endDateObj = new Date(startDateObj);
+          endDateObj.setDate(endDateObj.getDate() + duration - 1);
+          const year = endDateObj.getFullYear();
+          const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(endDateObj.getDate()).padStart(2, '0');
+          const endDateStr = `${year}-${month}-${day}`;
+          return dateStr >= startDate && dateStr <= endDateStr;
+        }
         return true;
       });
 
       dayHabits.forEach(h => {
         const done = !!h.history[dateStr];
+        let subtitle = 'Hábito';
+        if (h.frequency === 'novena') {
+          subtitle = 'Novena';
+        } else if (h.frequency === 'challenge') {
+          const startDate = h.startDate || h.createdAt.split('T')[0];
+          const startParts = startDate.split('-').map(Number);
+          const startDateObj = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+          const targetParts = dateStr.split('-').map(Number);
+          const targetDateObj = new Date(targetParts[0], targetParts[1] - 1, targetParts[2]);
+          const dayNum = Math.floor((targetDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          subtitle = `Devocional (Dia ${dayNum}/${h.durationDays || 40})`;
+        }
+
         items.push({
           id: `habit-${h.id}-${dateStr}`,
           type: 'habit',
           title: h.title,
-          subtitle: h.frequency === 'novena' ? 'Novena' : 'Hábito',
+          subtitle,
           time: h.time || 'A qualquer hora',
           done,
-          badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          badgeColor: h.frequency === 'challenge' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
           onToggle: () => handleToggleHabit(h.id, dateStr, h.title),
         });
       });

@@ -99,3 +99,14 @@ export interface Checklist {
   createdAt: string;
   category?: string;
 }
+
+export type StickyNoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'amber';
+
+export interface StickyNote {
+  id: string;
+  content: string;
+  color: StickyNoteColor;
+  createdAt: string;
+  pinned?: boolean;
+  tag?: string;
+}

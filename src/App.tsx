@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { initAuth, db, googleSignIn, logout, clearGoogleTokenOn401, setCachedAccessToken } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { RoutineItem, Note, Bill, Habit, Checklist, CalendarTickState, GoogleCalendarEvent } from './types';
+import { RoutineItem, Note, Bill, Habit, Checklist, CalendarTickState, GoogleCalendarEvent, StickyNote } from './types';
 import {
   SAMPLE_ROUTINE,
   SAMPLE_HABITS,
   SAMPLE_BILLS,
   SAMPLE_NOTES,
   SAMPLE_CHECKLISTS,
+  SAMPLE_STICKY_NOTES,
   getLocalStorageData,
   setLocalStorageData,
 } from './initialData';
@@ -32,6 +33,9 @@ import {
   Bell,
   BellOff,
   Settings,
+  LayoutDashboard,
+  BookOpen,
+  StickyNote as StickyNoteIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -44,8 +48,24 @@ import HabitsSection from './components/HabitsSection';
 import ChecklistsSection from './components/ChecklistsSection';
 import WeeklyOverview from './components/WeeklyOverview';
 import LoginScreen from './components/LoginScreen';
+import StickyNotesBoard from './components/StickyNotesBoard';
+import TodaySummaryAndNotifications from './components/TodaySummaryAndNotifications';
+import NotesAndListsSection from './components/NotesAndListsSection';
 
 // Helper functions to merge local and cloud states on login/first load
+const mergeStickyNotes = (local: StickyNote[], cloud: StickyNote[]): StickyNote[] => {
+  const safeCloud = Array.isArray(cloud) ? cloud : [];
+  const safeLocal = Array.isArray(local) ? local : [];
+  const merged = [...safeCloud];
+  safeLocal.forEach(localItem => {
+    if (!localItem) return;
+    const exists = merged.some(cloudItem => cloudItem && cloudItem.id === localItem.id);
+    if (!exists) {
+      merged.push(localItem);
+    }
+  });
+  return merged;
+};
 const mergeRoutines = (local: RoutineItem[], cloud: RoutineItem[]): RoutineItem[] => {
   const safeCloud = Array.isArray(cloud) ? cloud : [];
   const safeLocal = Array.isArray(local) ? local : [];
@@ -188,6 +208,9 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   // Core brain states (persisted in localStorage)
+  const [stickyNotes, setStickyNotes] = useState<StickyNote[]>(() =>
+    getLocalStorageData('brain_sticky_notes', SAMPLE_STICKY_NOTES)
+  );
   const [routine, setRoutine] = useState<RoutineItem[]>(() =>
     getLocalStorageData('brain_routine', SAMPLE_ROUTINE)
   );
@@ -239,6 +262,10 @@ export default function App() {
   );
 
   // Sync state changes to localStorage
+  useEffect(() => {
+    setLocalStorageData('brain_sticky_notes', stickyNotes);
+  }, [stickyNotes]);
+
   useEffect(() => {
     setLocalStorageData('brain_routine', routine);
   }, [routine]);
@@ -391,6 +418,7 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Refs to always access freshest state inside subscription callback
+  const stickyNotesRef = useRef(stickyNotes);
   const routineRef = useRef(routine);
   const habitsRef = useRef(habits);
   const billsRef = useRef(bills);
@@ -400,6 +428,7 @@ export default function App() {
   const hasInitialLoadRef = useRef(false);
 
   // Firestore comparison refs to prevent write-back loops and race conditions
+  const cloudStickyNotesRef = useRef<StickyNote[] | null>(null);
   const cloudRoutineRef = useRef<RoutineItem[] | null>(null);
   const cloudHabitsRef = useRef<Habit[] | null>(null);
   const cloudBillsRef = useRef<Bill[] | null>(null);
@@ -408,6 +437,7 @@ export default function App() {
   const cloudCalendarTicksRef = useRef<CalendarTickState[] | null>(null);
 
   // Update refs on state changes
+  useEffect(() => { stickyNotesRef.current = stickyNotes; }, [stickyNotes]);
   useEffect(() => { routineRef.current = routine; }, [routine]);
   useEffect(() => { habitsRef.current = habits; }, [habits]);
   useEffect(() => { billsRef.current = bills; }, [bills]);
@@ -419,6 +449,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       hasInitialLoadRef.current = false;
+      cloudStickyNotesRef.current = null;
       cloudRoutineRef.current = null;
       cloudHabitsRef.current = null;
       cloudBillsRef.current = null;
@@ -460,6 +491,7 @@ export default function App() {
 
             if (!hasInitialLoadRef.current) {
               // Merging local data (from this device's localStorage) and cloud data
+              const mergedStickyNotes = mergeStickyNotes(stickyNotesRef.current, data.stickyNotes || []);
               const mergedRoutine = mergeRoutines(routineRef.current, data.routine || []);
               const mergedHabits = mergeHabits(habitsRef.current, data.habits || []);
               const mergedBills = mergeBills(billsRef.current, data.bills || []);
@@ -468,6 +500,7 @@ export default function App() {
               const mergedCalendarTicks = mergeCalendarTicks(calendarTicksRef.current, data.calendarTicks || []);
 
               // Set the cloud references so we know what is already in the database
+              cloudStickyNotesRef.current = data.stickyNotes || [];
               cloudRoutineRef.current = data.routine || [];
               cloudHabitsRef.current = data.habits || [];
               cloudBillsRef.current = data.bills || [];
@@ -476,6 +509,7 @@ export default function App() {
               cloudCalendarTicksRef.current = data.calendarTicks || [];
 
               // Update state with the merged result
+              setStickyNotes(mergedStickyNotes);
               setRoutine(mergedRoutine);
               setHabits(mergedHabits);
               setBills(mergedBills);
@@ -485,6 +519,7 @@ export default function App() {
 
               // Detect if local storage had any new/un-synced changes
               const hadLocalAdditions = 
+                JSON.stringify(mergedStickyNotes) !== JSON.stringify(data.stickyNotes) ||
                 JSON.stringify(mergedRoutine) !== JSON.stringify(data.routine) ||
                 JSON.stringify(mergedHabits) !== JSON.stringify(data.habits) ||
                 JSON.stringify(mergedBills) !== JSON.stringify(data.bills) ||
@@ -500,6 +535,7 @@ export default function App() {
               hasInitialLoadRef.current = true;
             } else {
               // Subsequent snapshots (live edits from another device)
+              cloudStickyNotesRef.current = data.stickyNotes || [];
               cloudRoutineRef.current = data.routine || [];
               cloudHabitsRef.current = data.habits || [];
               cloudBillsRef.current = data.bills || [];
@@ -507,6 +543,7 @@ export default function App() {
               cloudChecklistsRef.current = data.checklists || [];
               cloudCalendarTicksRef.current = data.calendarTicks || [];
 
+              const stickyDiff = JSON.stringify(data.stickyNotes) !== JSON.stringify(stickyNotesRef.current);
               const routineDiff = JSON.stringify(data.routine) !== JSON.stringify(routineRef.current);
               const habitsDiff = JSON.stringify(data.habits) !== JSON.stringify(habitsRef.current);
               const billsDiff = JSON.stringify(data.bills) !== JSON.stringify(billsRef.current);
@@ -514,7 +551,8 @@ export default function App() {
               const checklistsDiff = JSON.stringify(data.checklists) !== JSON.stringify(checklistsRef.current);
               const calendarTicksDiff = JSON.stringify(data.calendarTicks) !== JSON.stringify(calendarTicksRef.current);
 
-              if (routineDiff || habitsDiff || billsDiff || notesDiff || checklistsDiff || calendarTicksDiff) {
+              if (stickyDiff || routineDiff || habitsDiff || billsDiff || notesDiff || checklistsDiff || calendarTicksDiff) {
+                if (stickyDiff && data.stickyNotes) setStickyNotes(data.stickyNotes);
                 if (routineDiff && data.routine) setRoutine(data.routine);
                 if (habitsDiff && data.habits) setHabits(data.habits);
                 if (billsDiff && data.bills) setBills(data.bills);
@@ -528,6 +566,7 @@ export default function App() {
           } else {
             // New user or no data on Firestore yet. Save local copy.
             const payload: any = {
+              stickyNotes: stickyNotesRef.current,
               routine: routineRef.current,
               habits: habitsRef.current,
               bills: billsRef.current,
@@ -540,6 +579,7 @@ export default function App() {
               payload.googleAccessToken = accessToken;
             }
             await setDoc(userDocRef, payload, { merge: true });
+            cloudStickyNotesRef.current = stickyNotesRef.current;
             cloudRoutineRef.current = routineRef.current;
             cloudHabitsRef.current = habitsRef.current;
             cloudBillsRef.current = billsRef.current;
@@ -574,6 +614,7 @@ export default function App() {
 
     // Check if there are any actual differences compared to what we have in cloud
     const hasChanges = 
+      (cloudStickyNotesRef.current === null || JSON.stringify(stickyNotes) !== JSON.stringify(cloudStickyNotesRef.current)) ||
       (cloudRoutineRef.current === null || JSON.stringify(routine) !== JSON.stringify(cloudRoutineRef.current)) ||
       (cloudHabitsRef.current === null || JSON.stringify(habits) !== JSON.stringify(cloudHabitsRef.current)) ||
       (cloudBillsRef.current === null || JSON.stringify(bills) !== JSON.stringify(cloudBillsRef.current)) ||
@@ -588,6 +629,7 @@ export default function App() {
       try {
         const userDocRef = doc(db, 'users', user.uid);
         const payload: any = {
+          stickyNotes,
           routine,
           habits,
           bills,
@@ -600,6 +642,7 @@ export default function App() {
           payload.googleAccessToken = accessToken;
         }
         await setDoc(userDocRef, payload, { merge: true });
+        cloudStickyNotesRef.current = stickyNotes;
         cloudRoutineRef.current = routine;
         cloudHabitsRef.current = habits;
         cloudBillsRef.current = bills;
@@ -618,10 +661,10 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [routine, habits, bills, notes, checklists, calendarTicks, user, firestoreLoaded, accessToken]);
+  }, [stickyNotes, routine, habits, bills, notes, checklists, calendarTicks, user, firestoreLoaded, accessToken]);
 
   // Active tab navigation
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'routine' | 'calendar' | 'notes' | 'bills' | 'habits' | 'checklists'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'unified' | 'routine' | 'habits' | 'bills' | 'notes_lists' | 'calendar'>('dashboard');
 
   const [quickNoteText, setQuickNoteText] = useState('');
 
@@ -964,17 +1007,17 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Workspace Navigation (Tabs) */}
-      <nav className="bg-white/80 backdrop-blur-md rounded-2xl p-1.5 border border-slate-200 shadow-sm max-w-7xl mx-4 md:mx-auto mb-6 flex gap-1.5 overflow-x-auto scrollbar-none sticky top-4 z-30">
-        <div className="flex gap-1.5">
+      {/* Main Workspace Navigation (Top Desktop/Tablet Bar) */}
+      <nav className="bg-white/80 backdrop-blur-md rounded-2xl p-1.5 border border-slate-200 shadow-xs max-w-7xl mx-3 md:mx-auto mb-4 md:mb-6 flex gap-1.5 overflow-x-auto scrollbar-none sticky top-2 sm:top-4 z-30">
+        <div className="flex gap-1.5 min-w-full sm:min-w-0">
           {([
-            { id: 'dashboard', label: 'Painel Geral', shortLabel: 'Painel', icon: Sparkles },
+            { id: 'dashboard', label: 'Início & Post-its', shortLabel: 'Início', icon: Sparkles },
+            { id: 'unified', label: 'Visão Unificada', shortLabel: 'Unificada', icon: LayoutDashboard },
             { id: 'routine', label: 'Rotina Semanal', shortLabel: 'Rotina', icon: Clock },
-            { id: 'calendar', label: 'Google Agenda', shortLabel: 'Agenda', icon: CalendarIcon },
-            { id: 'notes', label: 'Notas & Anexos', shortLabel: 'Notas', icon: FileText },
+            { id: 'habits', label: 'Hábitos & Desafios', shortLabel: 'Hábitos', icon: Flame },
             { id: 'bills', label: 'Contas a Pagar', shortLabel: 'Contas', icon: CreditCard },
-            { id: 'habits', label: 'Hábitos & Devocionais', shortLabel: 'Hábitos', icon: Flame },
-            { id: 'checklists', label: 'Checklists', shortLabel: 'Checklists', icon: ListTodo },
+            { id: 'notes_lists', label: 'Notas & Listas', shortLabel: 'Notas/Listas', icon: BookOpen },
+            { id: 'calendar', label: 'Google Agenda', shortLabel: 'Agenda', icon: CalendarIcon },
           ] as const).map(tab => {
             const isSelected = activeTab === tab.id;
             const Icon = tab.icon;
@@ -997,8 +1040,41 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Fixed Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-1 py-1.5 shadow-lg flex justify-around items-center">
+        {([
+          { id: 'dashboard', label: 'Início', icon: Sparkles },
+          { id: 'unified', label: 'Unificada', icon: LayoutDashboard },
+          { id: 'notes_lists', label: 'Notas/Listas', icon: BookOpen },
+          { id: 'routine', label: 'Rotina', icon: Clock },
+          { id: 'habits', label: 'Hábitos', icon: Flame },
+          { id: 'bills', label: 'Contas', icon: CreditCard },
+          { id: 'calendar', label: 'Agenda', icon: CalendarIcon },
+        ] as const).map(tab => {
+          const isSelected = activeTab === tab.id;
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition cursor-pointer min-w-[45px] ${
+                isSelected
+                  ? 'text-indigo-600 font-bold bg-indigo-50/80'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <Icon size={18} className={isSelected ? 'text-indigo-600' : 'text-slate-400'} />
+              <span className="text-[9.5px] leading-tight mt-0.5">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Application Content Panels */}
-      <main className="flex-1 p-4 md:p-12 max-w-7xl w-full mx-auto">
+      <main className="flex-1 px-3 sm:px-6 md:px-12 py-3 sm:py-6 pb-24 md:pb-12 max-w-7xl w-full mx-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -1106,616 +1182,85 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Visão Semanal Combinada */}
-                <WeeklyOverview
-                  events={dashEvents}
+                {/* Quadro de Post-its Rápidos (Anotações Rápidas e Simples) */}
+                <StickyNotesBoard
+                  stickyNotes={stickyNotes}
+                  setStickyNotes={setStickyNotes}
+                  addToast={addToast}
+                />
+
+                {/* Resumo do Dia & Notificações de Eventos */}
+                <TodaySummaryAndNotifications
+                  dashEvents={dashEvents}
                   customEvents={customEvents}
                   dashLoading={dashLoading}
                   routine={routine}
                   setRoutine={setRoutine}
-                  bills={bills}
-                  setBills={setBills}
                   habits={habits}
                   setHabits={setHabits}
+                  bills={bills}
                   calendarTicks={calendarTicks}
                   setCalendarTicks={setCalendarTicks}
-                  addToast={addToast}
                   accessToken={accessToken}
+                  remindersEnabled={remindersEnabled}
+                  setRemindersEnabled={setRemindersEnabled}
+                  notificationPermission={notificationPermission as any}
+                  requestNotificationPermission={requestNotificationPermission}
+                  reminderMorningEnabled={reminderMorningEnabled}
+                  setReminderMorningEnabled={setReminderMorningEnabled}
+                  reminderMorningTime={reminderMorningTime}
+                  setReminderMorningTime={setReminderMorningTime}
+                  reminderEveningEnabled={reminderEveningEnabled}
+                  setReminderEveningEnabled={setReminderEveningEnabled}
+                  reminderEveningTime={reminderEveningTime}
+                  setReminderEveningTime={setReminderEveningTime}
                   onNavigateTab={(tab) => setActiveTab(tab)}
+                  addToast={addToast}
                 />
-
-                {/* Bento Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-stretch">
-                  
-                  {/* Card 1: Google Agenda Events */}
-                  <div className="col-span-12 md:col-span-4 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between min-h-[350px]">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold flex items-center gap-2 text-indigo-955 text-base">
-                          <CalendarIcon className="w-5 h-5 text-indigo-600 shrink-0" />
-                          Eventos do Dia
-                        </h3>
-                        <span className="text-[10px] bg-indigo-50 px-2.5 py-1 rounded-full text-indigo-600 font-bold uppercase tracking-wider">
-                          Agenda
-                        </span>
-                      </div>
-
-                      <div className="space-y-2.5 overflow-y-auto max-h-[220px] pr-1">
-                        {(() => {
-                          const today = new Date();
-                          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                          const todayCustom = customEvents.filter(e => {
-                            if (e.start.date) return e.start.date === todayStr;
-                            if (e.start.dateTime) {
-                              const d = new Date(e.start.dateTime);
-                              const y = d.getFullYear();
-                              const m = String(d.getMonth() + 1).padStart(2, '0');
-                              const day = String(d.getDate()).padStart(2, '0');
-                              return `${y}-${m}-${day}` === todayStr;
-                            }
-                            return false;
-                          });
-
-                          const combinedToday = [...dashEvents, ...todayCustom];
-
-                          if (!accessToken && combinedToday.length === 0) {
-                            return (
-                              <div className="text-center py-10 text-xs text-slate-400 font-medium">
-                                Conecte sua conta Google Agenda ou crie um evento local.
-                                <button
-                                  onClick={() => setActiveTab('calendar')}
-                                  className="block mx-auto mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-3 py-1.5 rounded-xl transition text-[10px]"
-                                >
-                                  Ir para Agenda
-                                </button>
-                              </div>
-                            );
-                          }
-
-                          if (dashLoading && combinedToday.length === 0) {
-                            return (
-                              <div className="text-center py-12 text-xs text-slate-400 font-mono animate-pulse">
-                                Carregando eventos...
-                              </div>
-                            );
-                          }
-
-                          if (combinedToday.length === 0) {
-                            return (
-                              <div className="text-center py-12 text-xs text-slate-400 italic">
-                                Nenhum evento agendado para hoje.
-                              </div>
-                            );
-                          }
-
-                          return combinedToday.map(event => {
-                            const dateStr = event.start.date || (event.start.dateTime ? (() => {
-                              const d = new Date(event.start.dateTime);
-                              const year = d.getFullYear();
-                              const month = String(d.getMonth() + 1).padStart(2, '0');
-                              const day = String(d.getDate()).padStart(2, '0');
-                              return `${year}-${month}-${day}`;
-                            })() : '');
-                            const isChecked = calendarTicks.some(t => t.eventId === event.id && t.dateStr === dateStr && t.done);
-
-                            return (
-                              <div
-                                key={event.id}
-                                className={`flex items-center gap-3 p-3 transition rounded-xl border ${
-                                  isChecked
-                                    ? 'bg-slate-50 opacity-60 border-l-4 border-indigo-500 border-y-slate-200 border-r-slate-200'
-                                    : 'bg-white border-slate-100 hover:bg-slate-50/50 shadow-xs'
-                                }`}
-                              >
-                                <button
-                                  onClick={() => {
-                                    setCalendarTicks(prev => {
-                                      const existingIdx = prev.findIndex(t => t.eventId === event.id && t.dateStr === dateStr);
-                                      if (existingIdx > -1) {
-                                        const copy = [...prev];
-                                        const done = !copy[existingIdx].done;
-                                        addToast(done ? `Evento "${event.summary}" concluído! ✓` : `Evento "${event.summary}" desmarcado`, done ? 'success' : 'info');
-                                        copy[existingIdx] = { ...copy[existingIdx], done };
-                                        return copy;
-                                      } else {
-                                        addToast(`Evento "${event.summary}" concluído! ✓`, 'success');
-                                        return [...prev, { eventId: event.id, dateStr, done: true }];
-                                      }
-                                    });
-                                  }}
-                                  className="text-slate-400 hover:text-indigo-600 transition cursor-pointer"
-                                >
-                                  {isChecked ? (
-                                    <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-50" />
-                                  ) : (
-                                    <Circle size={16} />
-                                  )}
-                                </button>
-                                <div className="min-w-0 flex-1">
-                                  <p className={`text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                    {event.summary}
-                                  </p>
-                                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                    {event.start.dateTime && (
-                                      <span className="font-mono text-[9px] text-indigo-500 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded-xs">
-                                        {new Date(event.start.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    )}
-                                    {event.calendarName && (
-                                      <span className="font-sans text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-xs">
-                                        {event.calendarName}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setActiveTab('calendar')}
-                      className="mt-4 text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer transition self-start"
-                    >
-                      Acessar Agenda Completa <ChevronRight size={14} />
-                    </button>
-                  </div>
-
-                  {/* Card 2: Captura Rápida (Quick Notes) */}
-                  <div className="col-span-12 md:col-span-5 bg-indigo-900 rounded-3xl p-6 shadow-lg text-white relative overflow-hidden flex flex-col justify-between min-h-[350px]">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold flex items-center gap-2 text-indigo-200 text-base">
-                          <FileText className="w-5 h-5 text-indigo-300 shrink-0" />
-                          Captura Rápida
-                        </h3>
-                        <span className="text-[10px] bg-white/10 px-2.5 py-1 rounded-full text-indigo-200 font-bold uppercase tracking-wider">
-                          Segundo Cérebro
-                        </span>
-                      </div>
-
-                      {/* Display most recent notes */}
-                      <div className="space-y-2 overflow-y-auto max-h-[140px] pr-1 mb-4">
-                        {notes.filter(n => n.tags?.includes('captura-rapida')).slice(0, 2).map(note => (
-                          <div key={note.id} className="bg-white/10 p-3 rounded-xl border border-white/10">
-                            <p className="text-xs font-semibold text-indigo-200">{note.title}</p>
-                            <p className="text-xs italic text-indigo-100 mt-0.5 line-clamp-2">"{note.content}"</p>
-                          </div>
-                        ))}
-                        {notes.filter(n => n.tags?.includes('captura-rapida')).length === 0 && (
-                          <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-center">
-                            <p className="text-xs text-indigo-200/80 italic">Nenhum pensamento capturado hoje.</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Quick Media References */}
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        <span className="bg-white/15 px-2.5 py-1 rounded-full text-[10px] border border-white/10 text-indigo-100">📎 links.txt</span>
-                        <span className="bg-white/15 px-2.5 py-1 rounded-full text-[10px] border border-white/10 text-indigo-100">🎥 ref_video.mp4</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Escreva uma ideia ou link..."
-                          value={quickNoteText}
-                          onChange={e => setQuickNoteText(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleAddQuickNote(); }}
-                          className="w-full bg-white/10 text-white placeholder-indigo-300 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                        />
-                        <button
-                          onClick={handleAddQuickNote}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 rounded-xl text-xs transition cursor-pointer shrink-0"
-                        >
-                          Capturar
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => setActiveTab('notes')}
-                        className="text-xs text-indigo-200 hover:text-white font-semibold flex items-center gap-1 transition"
-                      >
-                        Navegar para Notas <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card 3: Hábitos & Rotina */}
-                  <div className="col-span-12 md:col-span-3 bg-emerald-50 rounded-3xl p-6 shadow-sm border border-emerald-100 flex flex-col justify-between min-h-[350px]">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold flex items-center gap-1.5 text-emerald-950 text-sm">
-                          <Flame className="w-5 h-5 text-emerald-600 shrink-0" />
-                          Hábitos & Rotina
-                        </h3>
-                        <button
-                          onClick={() => setActiveTab('habits')}
-                          className="text-[10px] text-emerald-700 hover:underline font-bold"
-                        >
-                          Gerenciar
-                        </button>
-                      </div>
-
-                      <div className="space-y-3">
-                        {/* Daily Habits tracker block */}
-                        <div className="p-3.5 bg-white rounded-2xl shadow-xs border border-emerald-100">
-                          <p className="text-[10px] font-bold text-emerald-700 mb-2 uppercase tracking-wide">Hoje</p>
-                          <div className="space-y-2 max-h-[110px] overflow-y-auto pr-1">
-                            {habits.slice(0, 3).map(habit => {
-                              const done = isHabitDoneToday(habit);
-                              return (
-                                <div key={habit.id} className="flex justify-between items-center text-xs">
-                                  <span className="text-slate-700 truncate max-w-[130px] font-medium">{habit.title}</span>
-                                  <button
-                                    onClick={() => handleToggleHabitToday(habit.id)}
-                                    className={`w-4 h-4 rounded-full flex items-center justify-center border transition cursor-pointer ${
-                                      done ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 hover:border-emerald-300'
-                                    }`}
-                                  >
-                                    {done && <Check size={10} className="stroke-[3]" />}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                            {habits.length === 0 && (
-                              <p className="text-[11px] text-slate-400 italic">Nenhum hábito diário.</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Novena progress */}
-                        {(() => {
-                          const novenaHabit = habits.find(h => h.frequency === 'novena');
-                          if (novenaHabit) {
-                            const startDay = novenaHabit.novenaStartDay || 9;
-                            const repeatMonthly = novenaHabit.novenaRepeatMonthly ?? true;
-                            
-                            const completedDays = Array.from({ length: 9 }, (_, i) => i + 1).filter(day => {
-                              if (repeatMonthly) {
-                                const now = new Date();
-                                const dayNum = startDay + (day - 1);
-                                const year = now.getFullYear();
-                                const month = String(now.getMonth() + 1).padStart(2, '0');
-                                const dayStr = String(dayNum).padStart(2, '0');
-                                const dateKey = `${year}-${month}-${dayStr}`;
-                                return novenaHabit.history[dateKey];
-                              } else {
-                                const startDate = new Date((novenaHabit.novenaStart || novenaHabit.createdAt.split('T')[0]) + 'T00:00:00');
-                                startDate.setDate(startDate.getDate() + (day - 1));
-                                const dateKey = startDate.toISOString().split('T')[0];
-                                return novenaHabit.history[dateKey];
-                              }
-                            }).length;
-
-                            return (
-                              <div className="p-3 bg-white rounded-2xl shadow-xs border border-emerald-100">
-                                <p className="text-[10px] font-bold text-indigo-600 mb-1 uppercase tracking-wide">
-                                  {repeatMonthly ? 'Novena Mensal' : 'Novena Ativa'}
-                                </p>
-                                <p className="text-[11px] font-bold text-slate-700 truncate">{novenaHabit.title}</p>
-                                <div className="flex justify-between items-center mt-1 text-[10px] text-slate-500 font-mono">
-                                  <span>Dia {completedDays}/9</span>
-                                  <span>{Math.round((completedDays / 9) * 100)}%</span>
-                                </div>
-                                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
-                                  <div className="bg-indigo-600 h-full rounded-full transition-all" style={{ width: `${(completedDays / 9) * 100}%` }}></div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-emerald-100/50">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Agenda Semanal</p>
-                      <ul className="text-xs space-y-1 text-slate-600">
-                        {todayRoutine.slice(0, 2).map(item => (
-                          <li key={item.id} className="flex items-center gap-1.5 truncate text-[11px]">
-                            <span className={`w-1.5 h-1.5 rounded-full ${item.done ? 'bg-slate-300' : 'bg-indigo-600'}`} />
-                            <span className={`truncate ${item.done ? 'line-through text-slate-400' : 'font-semibold text-indigo-700'}`}>
-                              {item.time}{item.endTime ? `-${item.endTime}` : ''} - {item.title}
-                            </span>
-                          </li>
-                        ))}
-                        {todayRoutine.length === 0 && (
-                          <li className="text-[11px] text-slate-400 italic">Sem tarefas agendadas hoje.</li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Card 4: Contas a Pagar (Finances) */}
-                  <div className="col-span-12 md:col-span-4 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-bold flex items-center gap-2 text-rose-950 text-base">
-                          <CreditCard className="w-5 h-5 text-rose-600 shrink-0" />
-                          Contas a Pagar
-                        </h3>
-                        <button
-                          onClick={() => setActiveTab('bills')}
-                          className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-0.5"
-                        >
-                          Finanças <ChevronRight size={14} />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-2">
-                        {(() => {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          const todayStr = today.toISOString().split('T')[0];
-                          
-                          const unpaidBills = bills.filter(b => !b.paid).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-                          const unpaid = unpaidBills[0];
-                          const paid = bills.filter(b => b.paid)[0];
-
-                          let isOverdue = false;
-                          let isYesterday = false;
-                          let dateLabel = '';
-
-                          if (unpaid) {
-                            isOverdue = unpaid.dueDate < todayStr;
-                            
-                            const yesterday = new Date(today);
-                            yesterday.setDate(today.getDate() - 1);
-                            const yesterdayStr = yesterday.toISOString().split('T')[0];
-                            isYesterday = unpaid.dueDate === yesterdayStr;
-
-                            const dueDateObj = new Date(unpaid.dueDate + 'T00:00:00');
-                            dateLabel = isYesterday 
-                              ? 'Venceu ontem!' 
-                              : isOverdue 
-                              ? `Venceu em ${dueDateObj.toLocaleDateString('pt-BR')}`
-                              : `Vence ${dueDateObj.toLocaleDateString('pt-BR')}`;
-                          }
-
-                          return (
-                            <>
-                              {unpaid ? (
-                                <div className={`p-3.5 rounded-2xl border flex flex-col justify-between ${
-                                  isOverdue 
-                                    ? 'bg-red-50 border-red-200 text-red-900 animate-pulse' 
-                                    : 'bg-rose-50 border-rose-100 text-slate-800'
-                                }`}>
-                                  <div>
-                                    <p className={`text-[9px] font-extrabold uppercase tracking-wider ${
-                                      isOverdue ? 'text-red-600' : 'text-rose-500'
-                                    }`}>
-                                      {isOverdue ? '⚠️ Atrasada!' : 'Vence em breve'}
-                                    </p>
-                                    <p className="text-xs font-bold truncate mt-1">{unpaid.title}</p>
-                                  </div>
-                                  <p className={`text-xs font-bold mt-2 ${
-                                    isOverdue ? 'text-red-600' : 'text-rose-600'
-                                  }`}>
-                                    {dateLabel}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center items-center text-center">
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Tudo em dia</p>
-                                  <p className="text-xs text-emerald-600 font-bold mt-1">Sem contas pendentes! 🎉</p>
-                                </div>
-                              )}
-
-                              {paid ? (
-                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 grayscale flex flex-col justify-between opacity-75">
-                                  <div>
-                                    <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">Pago recente</p>
-                                    <p className="text-xs font-semibold text-slate-600 truncate mt-1">{paid.title}</p>
-                                  </div>
-                                  <p className="text-xs font-bold text-emerald-600 mt-2">
-                                    Pago! ✓
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 grayscale flex flex-col justify-center items-center text-center opacity-70">
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Sem histórico</p>
-                                  <p className="text-xs text-slate-400 mt-1">Nenhum pagamento registrado</p>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500 font-semibold">
-                      <span>Contas pendentes</span>
-                      <span className="font-mono text-rose-600 font-bold">
-                        {bills.filter(b => !b.paid).length} pendente(s)
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Card 5: Checklists */}
-                  {(() => {
-                    const activeList = checklists[0];
-                    if (!activeList) {
-                      return (
-                        <div className="col-span-12 md:col-span-4 bg-slate-800 rounded-3xl p-6 shadow-xl text-white flex flex-col justify-center items-center text-center min-h-[220px]">
-                          <p className="text-sm font-semibold text-slate-400">Nenhum checklist disponível</p>
-                          <button
-                            onClick={() => setActiveTab('checklists')}
-                            className="text-xs text-indigo-400 hover:underline mt-2 font-bold"
-                          >
-                            Criar Novo Checklist
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    const linkedEventItem = activeList.items.find(item => item.linkedTo);
-
-                    return (
-                      <div className="col-span-12 md:col-span-4 bg-slate-800 rounded-3xl p-6 shadow-xl text-white flex flex-col justify-between min-h-[220px]">
-                        <div>
-                          <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-bold flex items-center gap-2 truncate text-base text-white">
-                              <ListTodo className="w-5 h-5 text-indigo-400 shrink-0" />
-                              Checklist: {activeList.title}
-                            </h3>
-                            <button
-                              onClick={() => setActiveTab('checklists')}
-                              className="text-xs text-indigo-400 hover:underline shrink-0 font-bold"
-                            >
-                              Ver todos
-                            </button>
-                          </div>
-                          
-                          <div className="space-y-2 max-h-[110px] overflow-y-auto pr-1">
-                            {activeList.items.slice(0, 3).map(item => (
-                              <div key={item.id} className="flex items-center gap-2.5 text-xs">
-                                <span className={`w-4 h-4 rounded border border-white/30 flex items-center justify-center text-[9px] font-bold ${item.done ? 'bg-indigo-500 border-indigo-500' : ''}`}>
-                                  {item.done ? '✓' : ''}
-                                </span>
-                                <span className={item.done ? 'line-through opacity-60' : ''}>{item.text}</span>
-                              </div>
-                            ))}
-                            {activeList.items.length === 0 && (
-                              <p className="text-xs text-slate-400 italic">Este checklist não possui itens.</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {linkedEventItem?.linkedTo && (
-                          <div className="mt-4 flex items-center gap-1.5 text-[10px] text-indigo-300 bg-white/5 p-1.5 px-2.5 rounded-lg w-fit truncate max-w-full">
-                            <CalendarIcon size={11} className="text-indigo-400 shrink-0" />
-                            <span className="truncate">Vinculado a: {linkedEventItem.linkedTo.title}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Card 6: Lembretes Diários */}
-                  <div className="col-span-12 md:col-span-4 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-bold flex items-center gap-2 text-indigo-950 text-sm">
-                          <Bell className="w-4 h-4 text-indigo-600 shrink-0" />
-                          Lembretes Diários
-                        </h3>
-                        <span className={`text-[9.5px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                          remindersEnabled && notificationPermission === 'granted'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {remindersEnabled && notificationPermission === 'granted' ? 'Ativos 🔔' : 'Inativos 🔕'}
-                        </span>
-                      </div>
-
-                      <div className="space-y-3 mt-2">
-                        {notificationPermission !== 'granted' ? (
-                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-center">
-                            <p className="text-[10px] text-slate-500 leading-normal">
-                              Ative as notificações do navegador para receber os lembretes diários.
-                            </p>
-                            <button
-                              onClick={requestNotificationPermission}
-                              className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] py-1.5 px-3 rounded-xl transition cursor-pointer"
-                            >
-                              Autorizar Navegador 🔔
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-slate-700">Ativar Lembretes</span>
-                              <button
-                                onClick={() => {
-                                  setRemindersEnabled(prev => {
-                                    const next = !prev;
-                                    addToast(next ? 'Lembretes agendados ativos! 🔔' : 'Lembretes desativados.', next ? 'success' : 'info');
-                                    return next;
-                                  });
-                                }}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                                  remindersEnabled ? 'bg-indigo-600' : 'bg-slate-300'
-                                }`}
-                              >
-                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                                  remindersEnabled ? 'translate-x-4' : 'translate-x-0'
-                                }`} />
-                              </button>
-                            </div>
-
-                            {remindersEnabled && (
-                              <div className="space-y-2 pt-1 border-t border-slate-100">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <input
-                                      type="checkbox"
-                                      id="morning-enabled"
-                                      checked={reminderMorningEnabled}
-                                      onChange={(e) => setReminderMorningEnabled(e.target.checked)}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 shrink-0 cursor-pointer"
-                                    />
-                                    <label htmlFor="morning-enabled" className="text-[10px] font-medium text-slate-600 truncate cursor-pointer">
-                                      Planejar Dia (Manhã)
-                                    </label>
-                                  </div>
-                                  <input
-                                    type="time"
-                                    value={reminderMorningTime}
-                                    onChange={(e) => setReminderMorningTime(e.target.value)}
-                                    className="text-[10px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono w-16 bg-slate-50 cursor-pointer"
-                                  />
-                                </div>
-
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <input
-                                      type="checkbox"
-                                      id="evening-enabled"
-                                      checked={reminderEveningEnabled}
-                                      onChange={(e) => setReminderEveningEnabled(e.target.checked)}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 shrink-0 cursor-pointer"
-                                    />
-                                    <label htmlFor="evening-enabled" className="text-[10px] font-medium text-slate-600 truncate cursor-pointer">
-                                      Revisar Dia (Noite)
-                                    </label>
-                                  </div>
-                                  <input
-                                    type="time"
-                                    value={reminderEveningTime}
-                                    onChange={(e) => setReminderEveningTime(e.target.value)}
-                                    className="text-[10px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono w-16 bg-slate-50 cursor-pointer"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-1 text-[9px] text-slate-400">
-                      <div className="flex justify-between font-semibold">
-                        <span>Lembrete automático</span>
-                        <span>Web Push API</span>
-                      </div>
-                      <p className="text-[8px] leading-tight text-slate-400/80">
-                        * Mantenha o app aberto para disparar o alarme na hora exata.
-                      </p>
-                    </div>
-                  </div>
-
-                </div>
               </div>
+            )}
+
+            {activeTab === 'unified' && (
+              <WeeklyOverview
+                events={dashEvents}
+                customEvents={customEvents}
+                dashLoading={dashLoading}
+                routine={routine}
+                setRoutine={setRoutine}
+                bills={bills}
+                setBills={setBills}
+                habits={habits}
+                setHabits={setHabits}
+                calendarTicks={calendarTicks}
+                setCalendarTicks={setCalendarTicks}
+                addToast={addToast}
+                accessToken={accessToken}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
             )}
 
             {activeTab === 'routine' && (
               <RoutineSection routine={routine} setRoutine={setRoutine} addToast={addToast} />
+            )}
+
+            {activeTab === 'habits' && (
+              <HabitsSection habits={habits} setHabits={setHabits} addToast={addToast} />
+            )}
+
+            {activeTab === 'bills' && (
+              <BillsSection bills={bills} setBills={setBills} addToast={addToast} />
+            )}
+
+            {activeTab === 'notes_lists' && (
+              <NotesAndListsSection
+                notes={notes}
+                setNotes={setNotes}
+                checklists={checklists}
+                setChecklists={setChecklists}
+                routine={routine}
+                calendarEvents={dashEvents}
+                addToast={addToast}
+              />
             )}
 
             {activeTab === 'calendar' && (
@@ -1728,34 +1273,6 @@ export default function App() {
                 setCalendarTicks={setCalendarTicks}
                 customEvents={customEvents}
                 setCustomEvents={setCustomEvents}
-                addToast={addToast}
-              />
-            )}
-
-            {activeTab === 'notes' && (
-              <NotesSection
-                notes={notes}
-                setNotes={setNotes}
-                routine={routine}
-                calendarEvents={dashEvents}
-                addToast={addToast}
-              />
-            )}
-
-            {activeTab === 'bills' && (
-              <BillsSection bills={bills} setBills={setBills} addToast={addToast} />
-            )}
-
-            {activeTab === 'habits' && (
-              <HabitsSection habits={habits} setHabits={setHabits} addToast={addToast} />
-            )}
-
-            {activeTab === 'checklists' && (
-              <ChecklistsSection
-                checklists={checklists}
-                setChecklists={setChecklists}
-                routine={routine}
-                calendarEvents={dashEvents}
                 addToast={addToast}
               />
             )}
@@ -1772,7 +1289,7 @@ export default function App() {
       </footer>
 
       {/* Floating Toast Notifications */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-2 sm:px-0">
         <AnimatePresence>
           {toasts.map(toast => (
             <motion.div

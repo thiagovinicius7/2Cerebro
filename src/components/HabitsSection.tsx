@@ -404,7 +404,7 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
 
         {/* Action Button for Today */}
         {currentDayNumber >= 1 && currentDayNumber <= duration && (
-          <div className="flex items-center justify-between bg-white border border-amber-200/90 p-2.5 rounded-xl shadow-3xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white border border-amber-200/90 p-3 rounded-xl shadow-3xs">
             <span className="text-xs font-semibold text-slate-800 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
               Hoje é o <strong>Dia {currentDayNumber}</strong> do seu hábito ({formatDisplayDate(todayStr)})
@@ -412,7 +412,7 @@ export default function HabitsSection({ habits, setHabits, addToast }: HabitsSec
             <button
               type="button"
               onClick={() => toggleChallengeDay(todayStr)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                 isTodayDone
                   ? 'bg-emerald-600 text-white shadow-2xs'
                   : 'bg-amber-500 hover:bg-amber-600 text-white shadow-2xs'

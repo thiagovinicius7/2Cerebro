@@ -1,4 +1,4 @@
-import { RoutineItem, Note, Bill, Habit, Checklist } from './types';
+import { RoutineItem, Note, Bill, Habit, Checklist, StickyNote } from './types';
 
 export const SAMPLE_ROUTINE: RoutineItem[] = [];
 
@@ -9,6 +9,25 @@ export const SAMPLE_BILLS: Bill[] = [];
 export const SAMPLE_NOTES: Note[] = [];
 
 export const SAMPLE_CHECKLISTS: Checklist[] = [];
+
+export const SAMPLE_STICKY_NOTES: StickyNote[] = [
+  {
+    id: 'stick_welcome_1',
+    content: '📌 Bem-vindo ao seu novo Quadro de Post-its!\nUse este espaço para anotar ideias rápidas, números e recados instantâneos.',
+    color: 'yellow',
+    createdAt: new Date().toISOString(),
+    pinned: true,
+    tag: 'dica',
+  },
+  {
+    id: 'stick_welcome_2',
+    content: '💡 Dica: Você pode categorizar por cores (Rosa, Azul, Verde, Amarelo...) e fixar no topo.',
+    color: 'blue',
+    createdAt: new Date().toISOString(),
+    pinned: false,
+    tag: 'organizacao',
+  }
+];
 
 export const getLocalStorageData = <T>(key: string, initial: T): T => {
   try {

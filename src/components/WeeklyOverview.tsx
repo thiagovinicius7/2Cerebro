@@ -520,11 +520,35 @@ export default function WeeklyOverview({
       </div>
 
       {/* Mobile Day Picker (Visible on small screens) */}
-      <div className="block lg:hidden">
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Selecione o Dia da Semana</p>
+      <div className="block lg:hidden space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Dia Selecionado: <strong className="text-indigo-600">{weekDays[mobileSelectedDayIndex]?.name.full} ({weekDays[mobileSelectedDayIndex]?.dateObj.getDate()})</strong>
+          </p>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setMobileSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
+            >
+              <ChevronLeft size={14} />
+              Anterior
+            </button>
+            <button
+              onClick={() => setMobileSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0))}
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
+            >
+              Próximo
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-7 gap-1">
           {weekDays.map((day, idx) => {
             const dayItems = getDayItems(day.dateStr, day.dayOfWeek);
+            const doneCount = dayItems.filter(i => i.done).length;
+            const totalCount = dayItems.length;
             const isSelected = mobileSelectedDayIndex === idx;
 
             return (
@@ -541,10 +565,19 @@ export default function WeeklyOverview({
               >
                 <span className="text-[10px] font-extrabold uppercase opacity-80">{day.name.short}</span>
                 <span className="text-sm font-bold mt-0.5">{day.dateObj.getDate()}</span>
-                {dayItems.length > 0 && (
-                  <span className={`w-1.5 h-1.5 rounded-full mt-1 ${
-                    isSelected ? 'bg-white' : 'bg-indigo-500'
-                  }`} />
+                
+                {totalCount > 0 ? (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full mt-1 ${
+                    isSelected
+                      ? 'bg-indigo-700/80 text-white'
+                      : doneCount === totalCount
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-indigo-100 text-indigo-800'
+                  }`}>
+                    {doneCount}/{totalCount}
+                  </span>
+                ) : (
+                  <span className="text-[9px] text-transparent mt-1">•</span>
                 )}
               </button>
             );

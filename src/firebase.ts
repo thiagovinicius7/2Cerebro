@@ -18,8 +18,7 @@ import {
 import firebaseConfig from '../firebase-applet-config.json';
 import { clearCalendarToken, saveCalendarToken } from './lib/calendar';
 
-const DB_ID =
-  (firebaseConfig as any).firestoreDatabaseId || 'ai-studio-segundocrebro-2988f1ad-59dc-41a3-8b1f-4fcff64d1af6';
+const DB_ID = (firebaseConfig as any).firestoreDatabaseId || '(default)';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

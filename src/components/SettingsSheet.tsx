@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { CalendarDays, CloudCheck, CloudOff, Download, LogOut } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { CalendarDays, CloudCheck, CloudOff, Download, LogOut, Upload } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { logout, reconnectCalendar } from '../firebase';
 import { getCalendarToken } from '../lib/calendar';
-import { exportBackup } from '../lib/backup';
+import { exportBackup, importBackup } from '../lib/backup';
 import { useBrain } from '../lib/brain';
 import { Sheet, useToast } from './ui';
 
@@ -12,6 +12,7 @@ export default function SettingsSheet({ user, onClose }: { user: User; onClose: 
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [tok, setTok] = useState(getCalendarToken());
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const row = 'w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-stone-50';
 
@@ -69,8 +70,8 @@ export default function SettingsSheet({ user, onClose }: { user: User; onClose: 
             setBusy(true);
             try {
               await exportBackup(uid);
-            } catch {
-              toast('Não foi possível gerar o backup agora.');
+            } catch (e: any) {
+              toast(e?.message || 'Não foi possível gerar o backup agora.');
             } finally {
               setBusy(false);
             }
@@ -81,6 +82,33 @@ export default function SettingsSheet({ user, onClose }: { user: User; onClose: 
             <div className="text-[15px]">{busy ? 'Gerando…' : 'Baixar backup'}</div>
             <div className="text-xs text-stone-500">Arquivo com tudo, inclusive os dados da versão antiga</div>
           </div>
+        </button>
+        <button className={row} disabled={busy} onClick={() => fileRef.current?.click()}>
+          <Upload size={19} className="text-stone-600" />
+          <div className="flex-1">
+            <div className="text-[15px]">{busy ? 'Importando…' : 'Importar backup'}</div>
+            <div className="text-xs text-stone-500">Traz um arquivo de backup para esta conta (não duplica)</div>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={async e => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              setBusy(true);
+              try {
+                const r = await importBackup(uid, f);
+                toast(`Importado: ${r.tasks} tarefas, ${r.notes} notas, ${r.routines} itens de rotina.`);
+              } catch (err: any) {
+                toast(err?.message || 'Não consegui importar esse arquivo.');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
         </button>
         <button className={`${row} text-rose-600`} onClick={() => logout()}>
           <LogOut size={19} />

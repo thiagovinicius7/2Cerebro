@@ -11,7 +11,16 @@ const errorText = (e: any) => {
   if (code.includes('email-already-in-use')) return 'Esse e-mail já tem conta. Use "Entrar".';
   if (code.includes('weak-password')) return 'A senha precisa ter pelo menos 6 caracteres.';
   if (code.includes('popup-blocked')) return 'O navegador bloqueou a janela do Google. Libere pop-ups e tente de novo.';
-  return 'Não foi possível entrar. Tente de novo.';
+  if (code.includes('unauthorized-domain'))
+    return 'Domínio não autorizado: no Firebase, em Authentication → Configurações → Domínios autorizados, adicione thiagovinicius7.github.io';
+  if (code.includes('operation-not-allowed'))
+    return 'Esse tipo de login não está ativado: no Firebase, em Authentication → Método de login, ative Google e E-mail/senha.';
+  if (code.includes('configuration-not-found'))
+    return 'O Authentication ainda não foi iniciado no Firebase: abra Authentication e clique em Começar.';
+  if (code.includes('network-request-failed')) return 'Sem conexão com o Google. Verifique a internet.';
+  if (code.includes('operation-not-supported') || code.includes('web-storage-unsupported'))
+    return 'Este navegador bloqueou o login. Tente pelo Chrome.';
+  return `Não foi possível entrar (${code || e?.message || 'erro desconhecido'}).`;
 };
 
 export default function LoginScreen() {

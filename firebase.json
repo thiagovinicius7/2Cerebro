@@ -1,0 +1,11 @@
+{
+  "firestore": [
+    { "database": "ai-studio-segundocrebro-2988f1ad-59dc-41a3-8b1f-4fcff64d1af6", "rules": "firestore.rules" }
+  ],
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

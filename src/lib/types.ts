@@ -1,0 +1,111 @@
+// Modelo de dados v2 — cada item é um documento próprio em
+// users/{uid}/tasks, users/{uid}/notes, users/{uid}/routines e users/{uid}/media.
+
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface Recurrence {
+  freq: RecurrenceFreq;
+  interval?: number; // a cada N dias/semanas/meses (padrão 1)
+  weekDays?: number[]; // para 'weekly': 0 = domingo … 6 = sábado
+  monthDay?: number; // para 'monthly': dia âncora (mantém o 31 quando o mês é curto)
+}
+
+export interface TaskDone {
+  date: string; // data de vencimento da ocorrência concluída (YYYY-MM-DD)
+  doneAt: string; // ISO
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  notes?: string;
+  dueDate?: string | null; // YYYY-MM-DD
+  time?: string | null; // HH:MM
+  recurrence?: Recurrence | null;
+  amount?: number | null; // valor em R$ (contas)
+  tags: string[];
+  done: boolean;
+  doneAt?: string | null;
+  history?: TaskDone[]; // ocorrências concluídas de tarefas repetidas
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'amber';
+
+export interface ChecklistEntry {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface NoteAttachment {
+  id: string;
+  type: 'image' | 'video' | 'link';
+  name: string;
+  url?: string; // links e imagens externas
+  mediaId?: string; // imagem enviada pelo app (users/{uid}/media/{mediaId})
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  text: string;
+  checklist: ChecklistEntry[];
+  color: NoteColor | null;
+  pinned: boolean;
+  tags: string[];
+  attachments: NoteAttachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RoutinePattern = 'days' | 'novena' | 'challenge';
+
+export interface Routine {
+  id: string;
+  title: string;
+  notes?: string;
+  pattern: RoutinePattern;
+  weekDays: number[]; // vazio = todos os dias
+  time?: string | null; // HH:MM — aparece na linha do tempo do dia
+  endTime?: string | null;
+  // Novena
+  novenaMonthly?: boolean; // true: todo mês do dia novenaStartDay ao +8
+  novenaStartDay?: number;
+  // Novena única e desafio
+  startDate?: string | null;
+  durationDays?: number | null; // desafio (ex.: 40)
+  category?: string;
+  history: Record<string, boolean>; // YYYY-MM-DD -> feito
+  archived?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MediaDoc {
+  data: string; // data URL (JPEG comprimido)
+  width: number;
+  height: number;
+  createdAt: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string; // ISO ou YYYY-MM-DD
+  end: string;
+  allDay: boolean;
+  calendarName?: string;
+  color?: string;
+  location?: string;
+}
+
+export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: string; label: string }> = {
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', dot: 'bg-yellow-300', label: 'Amarelo' },
+  amber: { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-300', label: 'Laranja' },
+  pink: { bg: 'bg-pink-50', border: 'border-pink-200', dot: 'bg-pink-300', label: 'Rosa' },
+  purple: { bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-300', label: 'Roxo' },
+  blue: { bg: 'bg-sky-50', border: 'border-sky-200', dot: 'bg-sky-300', label: 'Azul' },
+  green: { bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-300', label: 'Verde' },
+};

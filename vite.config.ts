@@ -7,6 +7,17 @@ export default defineConfig(() => {
   return {
     base: process.env.GITHUB_ACTIONS === 'true' ? '/2Cerebro/' : '/',
     plugins: [react(), tailwindcss()],
+    build: {
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            react: ['react', 'react-dom'],
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -26,8 +37,7 @@ export default defineConfig(() => {
         'firebase/app',
         'firebase/auth',
         'firebase/firestore',
-        'lucide-react',
-        'motion/react'
+        'lucide-react'
       ]
     },
   };

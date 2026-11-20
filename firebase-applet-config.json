@@ -1,11 +1,9 @@
 {
-  "projectId": "gen-lang-client-0996248003",
-  "appId": "1:634023244351:web:f10ffd622125715385fe8a",
-  "apiKey": "AIzaSyDEGkvtd1E9iJ04aACDEDEvQIO0e6NECVA",
-  "authDomain": "gen-lang-client-0996248003.firebaseapp.com",
-  "storageBucket": "gen-lang-client-0996248003.firebasestorage.app",
-  "messagingSenderId": "634023244351",
-  "measurementId": "",
-  "oAuthClientId": "634023244351-aq3nls3jhum3ievml1lv26rf94ntg5pg.apps.googleusercontent.com",
-  "firestoreDatabaseId": "ai-studio-segundocrebro-2988f1ad-59dc-41a3-8b1f-4fcff64d1af6"
+  "apiKey": "AIzaSyDXfqdr-y9moNc3E7JFHI3CFZmEg0J1tMw",
+  "authDomain": "segundo-cerebro-22400.firebaseapp.com",
+  "projectId": "segundo-cerebro-22400",
+  "storageBucket": "segundo-cerebro-22400.firebasestorage.app",
+  "messagingSenderId": "343437409670",
+  "appId": "1:343437409670:web:483b3ed4a618e8adba8007",
+  "firestoreDatabaseId": "(default)"
 }

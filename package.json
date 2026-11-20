@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-2cerebro",
+    "emulators": "firebase emulators:start --only auth,firestore --project segundo-cerebro-22400",
     "dev:emu": "VITE_EMULATOR=true vite --port=3000"
   },
   "dependencies": {

@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronLeft, ChevronRight, MapPin, Pin, Receipt, RefreshCw, Repeat, Sparkles } from 'lucide-react';
 import { CalendarEvent, Routine, Task } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { useCalendarDay } from '../lib/useCalendar';
 import { eventEndTime, eventTime } from '../lib/calendar';
-import { addDays, diffDays, formatDayLabel, formatLong, formatMoney, parseDate, todayStr, weekday, WEEKDAYS_SHORT } from '../lib/dates';
+import { addDays, diffDays, formatDayLabel, formatLong, parseDate, todayStr, weekday, WEEKDAYS_SHORT } from '../lib/dates';
 import { challengeProgress, isRoutineOn, novenaDays, sortTasks, taskOnDay } from '../lib/schedule';
+import { auth } from '../firebase';
 import TaskRow from './TaskRow';
 import NoteCard from './NoteCard';
-import { CheckButton, SectionTitle, useToast } from './ui';
+import { CheckButton, Hero, Overlap, SectionCard, useToast } from './ui';
 
 type TimelineItem =
   | { kind: 'event'; time: string; end?: string; ev: CalendarEvent }
@@ -20,14 +21,19 @@ const nowHHMM = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-function RoutineLine({ r, date }: { r: Routine; date: string }) {
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+};
+
+function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: string; showNovenaBar?: boolean }) {
   const { toggleRoutine, setEditing } = useBrain();
   const done = !!r.history?.[date];
   let extra = '';
+  let novena: string[] | null = null;
   if (r.pattern === 'novena') {
-    const days = novenaDays(r, date);
-    const idx = days.indexOf(date);
-    extra = `Novena · dia ${idx + 1} de 9`;
+    novena = novenaDays(r, date);
+    extra = `Novena · dia ${novena.indexOf(date) + 1} de 9`;
   } else if (r.pattern === 'challenge') {
     const p = challengeProgress(r, date);
     extra = `Desafio · dia ${p.dayN} de ${p.total}`;
@@ -36,14 +42,32 @@ function RoutineLine({ r, date }: { r: Routine; date: string }) {
   }
   const tone = r.pattern === 'novena' ? 'violet' : r.pattern === 'challenge' ? 'amber' : 'emerald';
   return (
-    <div onClick={() => setEditing({ kind: 'routine', item: r })} className="flex items-start gap-3 px-3 py-3 bg-white cursor-pointer active:bg-stone-50">
-      <div className="pt-0.5">
-        <CheckButton checked={done} tone={tone} onChange={() => toggleRoutine(r, date)} />
+    <div onClick={() => setEditing({ kind: 'routine', item: r })} className="px-4 py-3 cursor-pointer active:bg-stone-50">
+      <div className="flex items-start gap-3">
+        <div className="pt-0.5">
+          <CheckButton checked={done} tone={tone} onChange={() => toggleRoutine(r, date)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={`text-[15px] leading-snug ${done ? 'line-through text-stone-400' : 'text-tinta'}`}>{r.title}</div>
+          {extra && <div className="text-xs text-stone-500 mt-0.5">{extra}</div>}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-[15px] leading-snug ${done ? 'line-through text-stone-400' : 'text-stone-900'}`}>{r.title}</div>
-        {extra && <div className="text-xs text-stone-500 mt-0.5">{extra}</div>}
-      </div>
+      {showNovenaBar && novena && (
+        <div className="flex gap-1 mt-2 ml-9">
+          {novena.map(d => (
+            <span key={d} className={`flex-1 h-2 rounded-full ${r.history?.[d] ? 'bg-violet-500' : 'bg-violet-100'} ${d === date ? 'ring-2 ring-violet-300' : ''}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimePill({ time, end }: { time: string; end?: string }) {
+  return (
+    <div className="shrink-0 w-[58px] text-center mt-0.5">
+      <div className="text-xs font-bold text-sky-700 bg-sky-50 rounded-lg py-1 tabular-nums">{time}</div>
+      {end && <div className="text-[11px] text-stone-400 mt-0.5 tabular-nums">{end}</div>}
     </div>
   );
 }
@@ -56,7 +80,6 @@ export default function TodayView() {
   const [now, setNow] = useState(nowHHMM());
   const cal = useCalendarDay(date);
 
-  // Atualiza a hora (e vira o dia à meia-noite)
   useEffect(() => {
     const t = setInterval(() => {
       setNow(nowHHMM());
@@ -72,8 +95,8 @@ export default function TodayView() {
   const isToday = date === today;
   const dayRoutines = routines.filter(r => isRoutineOn(r, date));
   const dayTasks = tasks.filter(t => taskOnDay(t, date, today)).sort(sortTasks);
-  const doneToday = tasks.filter(t => t.done && t.doneAt && t.dueDate && t.dueDate <= date && t.doneAt.slice(0, 10) === date && !t.time);
-  const recurringDone = tasks.reduce((n, t) => n + (t.history || []).filter(h => h.doneAt.slice(0, 10) === date).length, 0);
+  const doneTasksToday = tasks.filter(t => t.done && t.doneAt && t.dueDate && t.dueDate <= date && t.doneAt.slice(0, 10) === date && !t.time);
+  const recurringDone = isToday ? tasks.reduce((n, t) => n + (t.history || []).filter(h => h.doneAt.slice(0, 10) === date).length, 0) : 0;
 
   const timed: TimelineItem[] = useMemo(() => {
     const items: TimelineItem[] = [
@@ -89,16 +112,20 @@ export default function TodayView() {
   const untimedRoutines = dayRoutines.filter(r => !r.time);
   const pinned = notes.filter(n => n.pinned).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 
-  const total = dayRoutines.length + dayTasks.length + doneToday.length + (isToday ? recurringDone : 0);
-  const doneCount = dayRoutines.filter(r => r.history?.[date]).length + doneToday.length + (isToday ? recurringDone : 0);
+  const routinesDone = dayRoutines.filter(r => r.history?.[date]).length;
+  const tasksPending = dayTasks.length;
+  const total = dayRoutines.length + dayTasks.length + doneTasksToday.length + recurringDone;
+  const doneCount = routinesDone + doneTasksToday.length + recurringDone;
+  const pct = total ? doneCount / total : 0;
+  const overdueCount = dayTasks.filter(t => t.dueDate && t.dueDate < today).length;
 
   const upcomingBills = tasks
-    .filter(t => !t.done && t.amount != null && t.dueDate && diffDays(date, t.dueDate) > 0 && diffDays(date, t.dueDate) <= 7)
+    .filter(t => !t.done && t.tags.includes('conta') && t.dueDate && diffDays(date, t.dueDate) > 0 && diffDays(date, t.dueDate) <= 7)
     .sort(sortTasks);
 
-  // Semana (segunda a domingo) que contém o dia escolhido
   const monday = addDays(date, -((weekday(date) + 6) % 7));
   const week = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const firstName = (auth.currentUser?.displayName || '').split(' ')[0];
 
   const connect = async () => {
     try {
@@ -109,118 +136,139 @@ export default function TodayView() {
   };
 
   const nowIndex = isToday ? timed.findIndex(i => i.time > now) : -1;
+  const eventsCount = cal.events.length + dayRoutines.filter(r => r.time).length;
 
   return (
     <div>
-      {/* Semana */}
-      <div className="flex items-center gap-1 -mx-1">
-        <button onClick={() => setDate(addDays(date, -7))} className="p-1.5 text-stone-400" aria-label="Semana anterior">
-          <ChevronLeft size={18} />
-        </button>
-        <div className="flex-1 grid grid-cols-7 gap-1">
-          {week.map(d => {
-            const sel = d === date;
-            const isT = d === today;
-            return (
-              <button
-                key={d}
-                onClick={() => setDate(d)}
-                className={`flex flex-col items-center py-1.5 rounded-xl transition ${
-                  sel ? 'bg-stone-900 text-white' : isT ? 'bg-amber-100 text-amber-900' : 'text-stone-500 hover:bg-white'
-                }`}
-              >
-                <span className="text-[10px] uppercase">{WEEKDAYS_SHORT[weekday(d)]}</span>
-                <span className="text-base font-semibold leading-tight">{parseDate(d).getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
-        <button onClick={() => setDate(addDays(date, 7))} className="p-1.5 text-stone-400" aria-label="Próxima semana">
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
-      <div className="flex items-end justify-between mt-4 px-1">
-        <div>
-          <div className="text-2xl font-bold text-stone-900 leading-tight">{isToday ? 'Hoje' : formatDayLabel(date, today)}</div>
-          <div className="text-sm text-stone-500">{formatLong(date)}</div>
-        </div>
-        <div className="text-right">
-          {!isToday && (
-            <button onClick={() => setDate(today)} className="text-xs font-medium text-amber-700 mb-1">
-              Voltar para hoje
+      <Hero
+        eyebrow={isToday ? formatLong(date) : formatLong(date)}
+        title={
+          isToday ? (
+            <>
+              {greeting()}
+              {firstName ? `, ${firstName}` : ''} ☀️
+            </>
+          ) : (
+            <button onClick={() => setDate(today)} className="text-left">
+              {formatDayLabel(date, today)}
+              <span className="block text-sm font-medium text-sol-300 mt-0.5">← voltar para hoje</span>
             </button>
-          )}
-          {total > 0 && (
-            <div className="text-sm text-stone-500">
-              <span className="font-semibold text-stone-900">{doneCount}</span> de {total} feitos
+          )
+        }
+        right={
+          total > 0 ? (
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: `conic-gradient(#FFDC73 0 ${pct * 100}%, rgba(255,255,255,.25) ${pct * 100}% 100%)` }}
+              aria-label={`${doneCount} de ${total} feitos`}
+            >
+              <div className="w-[50px] h-[50px] rounded-full bg-[#2A7E60] flex flex-col items-center justify-center leading-none">
+                <span className="font-bold text-base">
+                  {doneCount}/{total}
+                </span>
+                <span className="text-[9px] text-white/80 mt-0.5">feitos</span>
+              </div>
             </div>
-          )}
+          ) : null
+        }
+      >
+        <div className="flex items-center gap-1 mt-4 -mx-2">
+          <button onClick={() => setDate(addDays(date, -7))} className="p-1 text-white/70" aria-label="Semana anterior">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex-1 grid grid-cols-7 gap-1">
+            {week.map(d => {
+              const sel = d === date;
+              const isT = d === today;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setDate(d)}
+                  className={`flex flex-col items-center py-1.5 rounded-xl transition ${
+                    sel ? 'bg-white text-mata-700' : isT ? 'bg-white/20 text-white' : 'text-white/80'
+                  }`}
+                >
+                  <span className="text-[10px] uppercase">{WEEKDAYS_SHORT[weekday(d)]}</span>
+                  <span className="text-base font-bold leading-tight">{parseDate(d).getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => setDate(addDays(date, 7))} className="p-1 text-white/70" aria-label="Próxima semana">
+            <ChevronRight size={18} />
+          </button>
         </div>
-      </div>
-      {total > 0 && (
-        <div className="h-1.5 rounded-full bg-stone-200 mt-2 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(doneCount / total) * 100}%` }} />
-        </div>
-      )}
+      </Hero>
 
-      {/* Agenda */}
-      {cal.status === 'disconnected' && (
-        <button
-          onClick={connect}
-          className="w-full mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-sky-300 bg-sky-50 px-4 py-3 text-left"
-        >
-          <CalendarDays size={20} className="text-sky-600 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-sky-900">Conectar Google Agenda</div>
-            <div className="text-xs text-sky-700">
-              {cal.updatedAt ? 'Mostrando a última versão salva. Toque para atualizar.' : 'Para ver seus compromissos aqui.'}
+      <Overlap>
+        <div className="grid grid-cols-3 gap-2.5">
+          <div className="card p-3">
+            <div className="text-xl font-bold">{eventsCount}</div>
+            <div className="text-[11.5px] text-stone-500">{eventsCount === 1 ? 'compromisso' : 'compromissos'}</div>
+          </div>
+          <div className="card p-3">
+            <div className={`text-xl font-bold ${overdueCount ? 'text-rose-600' : ''}`}>{tasksPending}</div>
+            <div className="text-[11.5px] text-stone-500">
+              {overdueCount ? `${overdueCount} atrasada${overdueCount > 1 ? 's' : ''}` : tasksPending === 1 ? 'tarefa' : 'tarefas'}
             </div>
           </div>
-        </button>
-      )}
-      {cal.status === 'error' && (
-        <button onClick={cal.refresh} className="w-full mt-4 flex items-center gap-2 rounded-2xl bg-rose-50 text-rose-800 px-4 py-3 text-sm">
-          <RefreshCw size={16} /> Não consegui carregar a agenda. Tocar para tentar de novo.
-        </button>
-      )}
-
-      {allDay.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          {allDay.map(e => (
-            <span key={e.id} className="text-sm px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-100 text-sky-900">
-              <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: e.color || '#0284c7' }} />
-              {e.title}
-            </span>
-          ))}
+          <div className="card p-3">
+            <div className="text-xl font-bold">
+              {routinesDone}
+              <span className="text-stone-400 font-semibold">/{dayRoutines.length}</span>
+            </div>
+            <div className="text-[11.5px] text-stone-500">rotina</div>
+          </div>
         </div>
-      )}
 
-      {timed.length > 0 && (
-        <>
-          <SectionTitle right={cal.status === 'loading' ? <RefreshCw size={13} className="animate-spin text-stone-400" /> : null}>
-            Agenda
-          </SectionTitle>
-          <div className="rounded-2xl border border-stone-200 overflow-hidden bg-white divide-y divide-stone-100">
+        {(timed.length > 0 || allDay.length > 0 || cal.status === 'disconnected' || cal.status === 'error') && (
+          <SectionCard
+            icon={<CalendarDays size={17} />}
+            tint="blue"
+            title="Agenda"
+            right={cal.status === 'loading' ? <RefreshCw size={14} className="animate-spin text-stone-400" /> : null}
+          >
+            {cal.status === 'disconnected' && (
+              <button onClick={connect} className="mx-4 mt-1 mb-2 w-[calc(100%-2rem)] text-left rounded-2xl bg-sky-50 px-3.5 py-2.5">
+                <div className="text-sm font-semibold text-sky-900">Conectar Google Agenda</div>
+                <div className="text-xs text-sky-700">
+                  {cal.updatedAt ? 'Mostrando a última versão salva. Toque para atualizar.' : 'Para ver seus compromissos aqui.'}
+                </div>
+              </button>
+            )}
+            {cal.status === 'error' && (
+              <button onClick={cal.refresh} className="mx-4 mt-1 mb-2 flex items-center gap-2 text-sm text-rose-700">
+                <RefreshCw size={14} /> Não consegui carregar a agenda. Tentar de novo.
+              </button>
+            )}
+            {allDay.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-4 py-1.5">
+                {allDay.map(e => (
+                  <span key={e.id} className="text-sm px-3 py-1 rounded-xl bg-sky-50 text-sky-900">
+                    <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: e.color || '#0284c7' }} />
+                    {e.title}
+                  </span>
+                ))}
+              </div>
+            )}
             {timed.map((item, idx) => (
               <React.Fragment key={`${item.kind}-${item.kind === 'event' ? item.ev.id : item.kind === 'routine' ? item.r.id : item.t.id}`}>
                 {idx === nowIndex && (
-                  <div className="relative h-0">
-                    <div className="absolute inset-x-0 -top-px border-t-2 border-rose-400" />
-                    <span className="absolute left-2 -top-2 text-[10px] font-bold bg-rose-400 text-white px-1.5 rounded">{now}</span>
+                  <div className="flex items-center gap-2 px-4">
+                    <span className="text-[10px] font-bold text-rose-500 tabular-nums">{now}</span>
+                    <span className="flex-1 h-0.5 bg-rose-400 rounded" />
                   </div>
                 )}
-                <div className="flex">
-                  <div className="w-14 shrink-0 pt-3.5 pl-3 text-xs tabular-nums text-stone-500">
-                    <div className="font-semibold text-stone-800">{item.time}</div>
-                    {'end' in item && item.end && <div className="text-stone-400">{item.end}</div>}
+                <div className="flex items-start pl-4">
+                  <div className="pt-3">
+                    <TimePill time={item.time} end={'end' in item ? item.end : undefined} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 -ml-1">
                     {item.kind === 'event' && (
-                      <div className="flex gap-3 px-3 py-3">
-                        <span className="w-1 rounded-full shrink-0" style={{ background: item.ev.color || '#0284c7' }} />
+                      <div className="flex gap-3 px-4 py-3">
+                        <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: item.ev.color || '#0284c7' }} />
                         <div className="min-w-0">
-                          <div className="text-[15px] text-stone-900 leading-snug">{item.ev.title}</div>
+                          <div className="text-[15px] text-tinta leading-snug">{item.ev.title}</div>
                           <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-2">
                             <span>{item.ev.calendarName}</span>
                             {item.ev.location && (
@@ -239,65 +287,68 @@ export default function TodayView() {
                 </div>
               </React.Fragment>
             ))}
-            {isToday && nowIndex === -1 && timed.length > 0 && <div className="border-t-2 border-rose-400" />}
-          </div>
-        </>
-      )}
+            {isToday && nowIndex === -1 && timed.length > 0 && (
+              <div className="flex items-center gap-2 px-4 pb-1">
+                <span className="text-[10px] font-bold text-rose-500 tabular-nums">{now}</span>
+                <span className="flex-1 h-0.5 bg-rose-400 rounded" />
+              </div>
+            )}
+          </SectionCard>
+        )}
 
-      {/* Para fazer */}
-      {(untimedTasks.length > 0 || untimedRoutines.length > 0 || doneToday.length > 0) && (
-        <>
-          <SectionTitle>Para fazer</SectionTitle>
-          <div className="rounded-2xl border border-stone-200 overflow-hidden bg-white divide-y divide-stone-100">
+        {(untimedTasks.length > 0 || doneTasksToday.length > 0) && (
+          <SectionCard icon={<CheckSquare size={17} />} tint="red" title="Tarefas">
             {untimedTasks.map(t => (
               <TaskRow key={t.id} task={t} showDate={t.dueDate !== date} />
             ))}
-            {untimedRoutines.map(r => (
-              <RoutineLine key={r.id} r={r} date={date} />
-            ))}
-            {doneToday.map(t => (
+            {doneTasksToday.map(t => (
               <TaskRow key={t.id} task={t} showDate={false} />
             ))}
+          </SectionCard>
+        )}
+
+        {untimedRoutines.length > 0 && (
+          <SectionCard icon={<Repeat size={17} />} tint="purple" title="Rotina">
+            {untimedRoutines.map(r => (
+              <RoutineLine key={r.id} r={r} date={date} showNovenaBar />
+            ))}
+          </SectionCard>
+        )}
+
+        {total === 0 && timed.length === 0 && allDay.length === 0 && (
+          <div className="card mt-3.5 py-8 text-center text-stone-400">
+            <Sparkles className="mx-auto mb-2" size={30} />
+            <div className="font-semibold text-stone-600">Dia livre</div>
+            <button
+              onClick={() => setEditing({ kind: 'task', item: null, preset: { dueDate: date } })}
+              className="text-sm text-mata-700 font-medium mt-1"
+            >
+              Adicionar uma tarefa para {isToday ? 'hoje' : 'este dia'}
+            </button>
           </div>
-        </>
-      )}
+        )}
 
-      {total === 0 && timed.length === 0 && allDay.length === 0 && (
-        <div className="mt-8 text-center text-stone-400">
-          <Sparkles className="mx-auto mb-2" size={32} />
-          <div className="font-medium text-stone-600">Dia livre</div>
-          <button
-            onClick={() => setEditing({ kind: 'task', item: null, preset: { dueDate: date } })}
-            className="text-sm text-amber-700 mt-1"
-          >
-            Adicionar uma tarefa para {isToday ? 'hoje' : 'este dia'}
-          </button>
-        </div>
-      )}
-
-      {upcomingBills.length > 0 && (
-        <>
-          <SectionTitle right={<span className="text-xs text-stone-500">{formatMoney(upcomingBills.reduce((s, t) => s + (t.amount || 0), 0))}</span>}>
-            Contas nos próximos 7 dias
-          </SectionTitle>
-          <div className="rounded-2xl border border-stone-200 overflow-hidden divide-y divide-stone-100">
+        {upcomingBills.length > 0 && (
+          <SectionCard icon={<Receipt size={17} />} tint="amber" title="Contas da semana">
             {upcomingBills.map(t => (
               <TaskRow key={t.id} task={t} />
             ))}
-          </div>
-        </>
-      )}
+          </SectionCard>
+        )}
 
-      {pinned.length > 0 && (
-        <>
-          <SectionTitle>Notas fixadas</SectionTitle>
-          <div className="columns-2 sm:columns-3 gap-3">
-            {pinned.map(n => (
-              <NoteCard key={n.id} note={n} compact />
-            ))}
-          </div>
-        </>
-      )}
+        {pinned.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 mt-5 mb-2.5 px-1 text-[13px] font-bold text-stone-600">
+              <Pin size={14} /> Fixadas
+            </div>
+            <div className="columns-2 sm:columns-3 gap-3">
+              {pinned.map(n => (
+                <NoteCard key={n.id} note={n} compact />
+              ))}
+            </div>
+          </>
+        )}
+      </Overlap>
     </div>
   );
 }

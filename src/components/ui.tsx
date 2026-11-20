@@ -39,7 +39,7 @@ export function Sheet({
       <div
         role="dialog"
         className={`relative w-full sm:max-w-lg bg-white shadow-2xl flex flex-col animate-sheet ${
-          full ? 'h-[100dvh] sm:h-[85vh] sm:rounded-3xl' : 'max-h-[92dvh] rounded-t-3xl sm:rounded-3xl'
+          full ? 'h-[100dvh] sm:h-[85vh] sm:rounded-[28px]' : 'max-h-[92dvh] rounded-t-[28px] sm:rounded-[28px]'
         }`}
       >
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 shrink-0">
@@ -72,7 +72,7 @@ export function CheckButton({
   label?: string;
 }) {
   const tones = {
-    emerald: 'bg-emerald-500 border-emerald-500',
+    emerald: 'bg-mata-600 border-mata-600',
     amber: 'bg-amber-500 border-amber-500',
     violet: 'bg-violet-500 border-violet-500',
     sky: 'bg-sky-500 border-sky-500',
@@ -87,7 +87,7 @@ export function CheckButton({
         onChange();
       }}
       className={`shrink-0 rounded-full border-2 flex items-center justify-center transition active:scale-90 ${
-        checked ? `${tones[tone]} text-white` : 'border-stone-300 bg-white hover:border-stone-400'
+        checked ? `${tones[tone]} text-white` : 'border-[#CBD3CE] bg-white hover:border-stone-400'
       }`}
       style={{ width: size, height: size }}
     >
@@ -111,7 +111,7 @@ export const Chip = ({
     type="button"
     onClick={onClick}
     className={`shrink-0 px-3 py-1.5 rounded-full text-sm border transition ${
-      active ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-600 border-stone-200 hover:border-stone-300'
+      active ? 'bg-mata-700 text-white border-mata-700' : 'bg-white text-stone-600 border-transparent shadow-sm hover:border-stone-200'
     }`}
   >
     {children}
@@ -120,7 +120,7 @@ export const Chip = ({
 
 export const SectionTitle = ({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) => (
   <div className="flex items-center justify-between mt-6 mb-2 px-1">
-    <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-500">{children}</h2>
+    <h2 className="text-[13px] font-bold text-stone-600">{children}</h2>
     {right}
   </div>
 );
@@ -141,7 +141,83 @@ export const Field = ({ label, children }: { label: string; children: React.Reac
 );
 
 export const inputCls =
-  'w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[15px] outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-100';
+  'w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[15px] outline-none focus:border-mata-500 focus:ring-2 focus:ring-mata-50';
+
+export const primaryBtn = 'rounded-xl bg-mata-700 text-white font-semibold active:bg-mata-800';
+
+// ---------- Topo verde de cada aba + cartões com ícone ----------
+
+const AvatarCtx = createContext<React.ReactNode>(null);
+export const AvatarProvider = AvatarCtx.Provider;
+
+export function Hero({
+  eyebrow,
+  title,
+  right,
+  children,
+  overlap = true,
+}: {
+  eyebrow?: React.ReactNode;
+  title: React.ReactNode;
+  right?: React.ReactNode;
+  children?: React.ReactNode;
+  overlap?: boolean;
+}) {
+  const avatar = useContext(AvatarCtx);
+  return (
+    <div className={`hero-bg text-white px-5 pt-[max(1.25rem,env(safe-area-inset-top))] rounded-b-[28px] ${overlap ? 'pb-16' : 'pb-6'}`}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          {eyebrow && <div className="text-[13px] text-white/80">{eyebrow}</div>}
+          <h1 className="text-[26px] font-bold leading-tight mt-0.5">{title}</h1>
+        </div>
+        {right}
+        <div className="sm:hidden">{avatar}</div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Área que sobe por cima do topo verde. */
+export const Overlap = ({ children }: { children: React.ReactNode }) => <div className="-mt-12 px-4 relative">{children}</div>;
+
+const TINTS = {
+  blue: 'bg-sky-50 text-sky-600',
+  red: 'bg-rose-50 text-rose-500',
+  purple: 'bg-violet-50 text-violet-500',
+  green: 'bg-mata-50 text-mata-600',
+  amber: 'bg-amber-50 text-amber-600',
+  yellow: 'bg-yellow-50 text-yellow-600',
+};
+export type Tint = keyof typeof TINTS;
+
+export function SectionCard({
+  icon,
+  tint = 'green',
+  title,
+  right,
+  children,
+  flush = false,
+}: {
+  icon: React.ReactNode;
+  tint?: Tint;
+  title: React.ReactNode;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+  flush?: boolean;
+}) {
+  return (
+    <section className="card mt-3.5 overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-1">
+        <span className={`w-8 h-8 rounded-[10px] flex items-center justify-center ${TINTS[tint]}`}>{icon}</span>
+        <h2 className="flex-1 font-bold text-[15px] text-tinta">{title}</h2>
+        {right}
+      </div>
+      <div className={flush ? '' : 'pb-1.5'}>{children}</div>
+    </section>
+  );
+}
 
 export const Tags = ({ tags }: { tags: string[] }) =>
   tags.length ? (
@@ -288,11 +364,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="fixed bottom-24 sm:bottom-6 inset-x-0 z-[60] flex flex-col items-center gap-2 pointer-events-none px-4">
+      <div className="fixed bottom-28 sm:bottom-6 inset-x-0 z-[60] flex flex-col items-center gap-2 pointer-events-none px-4">
         {toasts.map(t => (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-center gap-3 bg-stone-900 text-white text-sm rounded-2xl pl-4 pr-2 py-2.5 shadow-lg animate-sheet max-w-md"
+            className="pointer-events-auto flex items-center gap-3 bg-tinta text-white text-sm rounded-2xl pl-4 pr-2 py-2.5 shadow-lg animate-sheet max-w-md"
           >
             <span className="flex-1">{t.msg}</span>
             {t.action && (
@@ -301,7 +377,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   t.action!.run();
                   setToasts(x => x.filter(y => y.id !== t.id));
                 }}
-                className="font-semibold text-amber-300 px-2 py-1 rounded-lg hover:bg-white/10"
+                className="font-semibold text-sol-400 px-2 py-1 rounded-lg hover:bg-white/10"
               >
                 {t.action.label}
               </button>

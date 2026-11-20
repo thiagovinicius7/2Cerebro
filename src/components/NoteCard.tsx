@@ -17,15 +17,15 @@ export default function NoteCard({ note, compact = false }: { note: Note; compac
   return (
     <div
       onClick={() => setEditing({ kind: 'note', item: note })}
-      className={`break-inside-avoid mb-3 rounded-2xl border overflow-hidden cursor-pointer transition hover:shadow-md active:scale-[0.99] ${
-        color ? `${color.bg} ${color.border}` : 'bg-white border-stone-200'
+      className={`break-inside-avoid mb-3 rounded-[22px] overflow-hidden cursor-pointer transition shadow-[0_2px_10px_rgba(16,40,30,0.05)] hover:shadow-md active:scale-[0.99] ${
+        color ? color.bg : 'bg-white'
       }`}
     >
       {images[0] && <NoteImage att={images[0]} zoomable={false} className={`w-full ${compact ? 'h-24' : 'h-36'}`} />}
-      <div className="p-3">
+      <div className="p-3.5">
         {(note.title || note.pinned) && (
           <div className="flex items-start gap-2">
-            <div className="flex-1 font-semibold text-stone-900 leading-snug break-words">{note.title}</div>
+            <div className="flex-1 font-bold text-tinta leading-snug break-words">{note.title}</div>
             {note.pinned && <Pin size={14} className="text-stone-400 shrink-0 mt-0.5 fill-current" />}
           </div>
         )}

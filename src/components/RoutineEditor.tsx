@@ -68,7 +68,7 @@ export default function RoutineEditor({
               </button>
             </>
           )}
-          <button onClick={save} className="flex-1 py-3 rounded-xl bg-stone-900 text-white font-semibold">
+          <button onClick={save} className="flex-1 py-3 rounded-xl bg-mata-700 text-white font-semibold">
             Salvar
           </button>
         </div>
@@ -88,7 +88,7 @@ export default function RoutineEditor({
             key={p.key}
             onClick={() => set('pattern', p.key)}
             className={`rounded-xl border px-2 py-2.5 text-sm font-medium ${
-              d.pattern === p.key ? 'bg-stone-900 text-white border-stone-900' : 'bg-white border-stone-200 text-stone-600'
+              d.pattern === p.key ? 'bg-mata-700 text-white border-mata-700' : 'bg-white border-stone-200 text-stone-600'
             }`}
           >
             {p.label}
@@ -105,7 +105,7 @@ export default function RoutineEditor({
                 key={i}
                 type="button"
                 onClick={() => toggleDay(i)}
-                className={`w-10 h-10 rounded-full text-sm font-medium ${dayOn(i) ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-400'}`}
+                className={`w-10 h-10 rounded-full text-sm font-medium ${dayOn(i) ? 'bg-mata-700 text-white' : 'bg-stone-100 text-stone-400'}`}
               >
                 {l}
               </button>
@@ -124,13 +124,13 @@ export default function RoutineEditor({
           <div className="flex gap-2">
             <button
               onClick={() => set('novenaMonthly', true)}
-              className={`flex-1 rounded-xl border py-2 text-sm ${d.novenaMonthly ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200'}`}
+              className={`flex-1 rounded-xl border py-2 text-sm ${d.novenaMonthly ? 'bg-mata-700 text-white border-mata-700' : 'border-stone-200'}`}
             >
               Todo mês
             </button>
             <button
               onClick={() => set('novenaMonthly', false)}
-              className={`flex-1 rounded-xl border py-2 text-sm ${!d.novenaMonthly ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200'}`}
+              className={`flex-1 rounded-xl border py-2 text-sm ${!d.novenaMonthly ? 'bg-mata-700 text-white border-mata-700' : 'border-stone-200'}`}
             >
               Uma vez
             </button>

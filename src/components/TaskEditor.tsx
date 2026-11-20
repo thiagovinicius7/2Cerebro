@@ -3,22 +3,11 @@ import { Repeat, Trash2 } from 'lucide-react';
 import { Recurrence, RecurrenceFreq, Task } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { addDays, formatDayLabel, parseDate, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
-import { AutoTextarea, Chip, Field, inputCls, Sheet, TagInput } from './ui';
-
-const parseMoney = (s: string): number | null => {
-  const clean = s.replace(/[^\d,.-]/g, '');
-  if (!clean) return null;
-  const normalized = clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean;
-  const v = Number(normalized);
-  return Number.isFinite(v) ? v : null;
-};
-const moneyText = (v?: number | null) =>
-  v == null ? '' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { AutoTextarea, Chip, Field, inputCls, primaryBtn, Sheet, TagInput } from './ui';
 
 export default function TaskEditor({ task, preset, onClose }: { task: Task | null; preset?: Partial<Task>; onClose: () => void }) {
   const { newTask, saveTask, deleteTask, toggleTask, allTags } = useBrain();
   const [draft, setDraft] = useState<Task>(() => task || newTask(preset));
-  const [money, setMoney] = useState(moneyText(draft.amount));
   const isNew = !task;
   const today = todayStr();
 
@@ -47,7 +36,6 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
     const fixed: Task = {
       ...draft,
       title,
-      amount: parseMoney(money),
       recurrence:
         rec && rec.freq === 'monthly' && draft.dueDate ? { ...rec, monthDay: parseDate(draft.dueDate).getDate() } : rec,
     };
@@ -83,7 +71,7 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
           {!isNew && !draft.done && (
             <button
               onClick={() => {
-                toggleTask({ ...draft, amount: parseMoney(money) });
+                toggleTask(draft);
                 onClose();
               }}
               className="flex-1 py-3 rounded-xl border border-stone-200 font-medium text-stone-700"
@@ -91,7 +79,7 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
               {draft.recurrence ? 'Feito (próxima)' : 'Concluir'}
             </button>
           )}
-          <button onClick={save} className="flex-1 py-3 rounded-xl bg-stone-900 text-white font-semibold">
+          <button onClick={save} className={`flex-1 py-3 ${primaryBtn}`}>
             Salvar
           </button>
         </div>
@@ -167,7 +155,7 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
                     const days = on ? cur.filter(d => d !== i) : [...cur, i].sort();
                     set('recurrence', { ...draft.recurrence!, weekDays: days });
                   }}
-                  className={`w-9 h-9 rounded-full text-sm font-medium ${on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500'}`}
+                  className={`w-9 h-9 rounded-full text-sm font-medium ${on ? 'bg-mata-700 text-white' : 'bg-stone-100 text-stone-500'}`}
                 >
                   {l}
                 </button>
@@ -190,25 +178,7 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
         )}
       </Field>
 
-      <Field label="Valor (para contas)">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">R$</span>
-          <input
-            inputMode="decimal"
-            value={money}
-            onChange={e => setMoney(e.target.value)}
-            onBlur={() => {
-              const v = parseMoney(money);
-              setMoney(moneyText(v));
-              if (v != null && !draft.tags.includes('conta')) set('tags', [...draft.tags, 'conta']);
-            }}
-            placeholder="0,00"
-            className={`${inputCls} pl-10`}
-          />
-        </div>
-      </Field>
-
-      <Field label="Etiquetas">
+      <Field label="Etiquetas (use #conta para lembretes de contas)">
         <TagInput value={draft.tags} onChange={v => set('tags', v)} suggestions={allTags} />
       </Field>
 

@@ -44,14 +44,14 @@ export default function LoginScreen() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-6 bg-stone-100">
+    <div className="min-h-[100dvh] flex items-center justify-center p-6 hero-bg">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-16 h-16 rounded-3xl bg-stone-900 text-amber-300 flex items-center justify-center mb-4 shadow-lg">
+          <div className="w-16 h-16 rounded-3xl bg-white text-mata-700 flex items-center justify-center mb-4 shadow-lg">
             <Brain size={34} />
           </div>
-          <h1 className="text-2xl font-bold text-stone-900">Segundo Cérebro</h1>
-          <p className="text-stone-500 mt-1">Seu dia, suas tarefas, notas e rotina num lugar só.</p>
+          <h1 className="text-2xl font-bold text-white">Segundo Cérebro</h1>
+          <p className="text-white/80 mt-1">Seu dia, suas tarefas, notas e rotina num lugar só.</p>
         </div>
 
         {mode === 'google' ? (
@@ -59,7 +59,7 @@ export default function LoginScreen() {
             <button
               disabled={busy}
               onClick={() => run(googleSignIn)}
-              className="w-full flex items-center justify-center gap-3 bg-white border border-stone-200 rounded-2xl py-3.5 font-medium shadow-sm hover:shadow disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-3.5 font-semibold text-tinta shadow-lg hover:shadow disabled:opacity-60"
             >
               <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden>
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
@@ -69,7 +69,7 @@ export default function LoginScreen() {
               </svg>
               Entrar com Google
             </button>
-            <button onClick={() => setMode('login')} className="w-full text-sm text-stone-500 mt-4">
+            <button onClick={() => setMode('login')} className="w-full text-sm text-white/80 mt-4">
               Entrar com e-mail e senha
             </button>
           </>
@@ -92,10 +92,10 @@ export default function LoginScreen() {
               className={inputCls}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
-            <button disabled={busy} className="w-full bg-stone-900 text-white rounded-2xl py-3.5 font-semibold disabled:opacity-60">
+            <button disabled={busy} className="w-full bg-sol-400 text-tinta rounded-2xl py-3.5 font-semibold disabled:opacity-60">
               {mode === 'login' ? 'Entrar' : 'Criar conta'}
             </button>
-            <div className="flex justify-between text-sm text-stone-500">
+            <div className="flex justify-between text-sm text-white/80">
               <button type="button" onClick={() => setMode('google')}>
                 ← Google
               </button>
@@ -105,7 +105,7 @@ export default function LoginScreen() {
             </div>
           </form>
         )}
-        {err && <div className="mt-4 text-sm text-rose-600 text-center">{err}</div>}
+        {err && <div className="mt-4 text-sm text-center bg-white/95 text-rose-700 rounded-xl px-3 py-2">{err}</div>}
       </div>
     </div>
   );

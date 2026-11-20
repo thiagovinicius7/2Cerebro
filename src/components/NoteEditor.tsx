@@ -206,14 +206,14 @@ export default function NoteEditor({ note, preset, onClose }: { note: Note | nul
         <div className="flex gap-2 mb-3 flex-wrap">
           <button
             onClick={() => update({ color: null })}
-            className={`w-8 h-8 rounded-full border-2 bg-white ${!draft.color ? 'border-stone-900' : 'border-stone-200'}`}
+            className={`w-8 h-8 rounded-full border-2 bg-white ${!draft.color ? 'border-mata-700' : 'border-stone-200'}`}
             aria-label="Sem cor"
           />
           {(Object.keys(NOTE_COLORS) as NoteColor[]).map(c => (
             <button
               key={c}
               onClick={() => update({ color: c })}
-              className={`w-8 h-8 rounded-full border-2 ${NOTE_COLORS[c].dot} ${draft.color === c ? 'border-stone-900' : 'border-transparent'}`}
+              className={`w-8 h-8 rounded-full border-2 ${NOTE_COLORS[c].dot} ${draft.color === c ? 'border-mata-700' : 'border-transparent'}`}
               aria-label={NOTE_COLORS[c].label}
             />
           ))}
@@ -320,7 +320,7 @@ export default function NoteEditor({ note, preset, onClose }: { note: Note | nul
             <button onClick={() => setLinkForm(null)} className="px-3 py-2 text-sm text-stone-500">
               Cancelar
             </button>
-            <button onClick={addLink} className="px-4 py-2 text-sm rounded-xl bg-stone-900 text-white font-medium">
+            <button onClick={addLink} className="px-4 py-2 text-sm rounded-xl bg-mata-700 text-white font-medium">
               Adicionar
             </button>
           </div>

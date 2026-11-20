@@ -2,7 +2,7 @@ import React from 'react';
 import { AlignLeft, Clock, Repeat } from 'lucide-react';
 import { Task } from '../lib/types';
 import { useBrain } from '../lib/brain';
-import { formatDayLabel, formatMoney, todayStr } from '../lib/dates';
+import { formatDayLabel, todayStr } from '../lib/dates';
 import { CheckButton, Tags } from './ui';
 
 export default function TaskRow({ task, showDate = true }: { task: Task; showDate?: boolean }) {
@@ -12,7 +12,7 @@ export default function TaskRow({ task, showDate = true }: { task: Task; showDat
   return (
     <div
       onClick={() => setEditing({ kind: 'task', item: task })}
-      className="flex items-start gap-3 px-3 py-3 bg-white cursor-pointer active:bg-stone-50"
+      className="flex items-start gap-3 px-4 py-3 cursor-pointer active:bg-stone-50"
     >
       <div className="pt-0.5">
         <CheckButton checked={task.done} onChange={() => toggleTask(task)} />
@@ -33,14 +33,9 @@ export default function TaskRow({ task, showDate = true }: { task: Task; showDat
           )}
           {task.recurrence && <Repeat size={11} aria-label="Repete" />}
           {task.notes && <AlignLeft size={11} aria-label="Tem observações" />}
-          <Tags tags={task.tags.filter(t => t !== 'conta' || task.amount == null)} />
+          <Tags tags={task.tags} />
         </div>
       </div>
-      {task.amount != null && (
-        <div className={`text-sm font-semibold tabular-nums pt-0.5 ${task.done ? 'text-stone-400' : overdue ? 'text-rose-600' : 'text-stone-800'}`}>
-          {formatMoney(task.amount)}
-        </div>
-      )}
     </div>
   );
 }

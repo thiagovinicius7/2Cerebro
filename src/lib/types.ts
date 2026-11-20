@@ -102,10 +102,10 @@ export interface CalendarEvent {
 }
 
 export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: string; label: string }> = {
-  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', dot: 'bg-yellow-300', label: 'Amarelo' },
-  amber: { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-300', label: 'Laranja' },
-  pink: { bg: 'bg-pink-50', border: 'border-pink-200', dot: 'bg-pink-300', label: 'Rosa' },
-  purple: { bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-300', label: 'Roxo' },
-  blue: { bg: 'bg-sky-50', border: 'border-sky-200', dot: 'bg-sky-300', label: 'Azul' },
-  green: { bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-300', label: 'Verde' },
+  yellow: { bg: 'bg-[#FFF3B8]', border: 'border-transparent', dot: 'bg-[#FFE16B]', label: 'Amarelo' },
+  amber: { bg: 'bg-[#FFE3C9]', border: 'border-transparent', dot: 'bg-[#FFB977]', label: 'Laranja' },
+  pink: { bg: 'bg-[#FFDDE6]', border: 'border-transparent', dot: 'bg-[#FF9DB5]', label: 'Rosa' },
+  purple: { bg: 'bg-[#E9E1FF]', border: 'border-transparent', dot: 'bg-[#B9A3FF]', label: 'Roxo' },
+  blue: { bg: 'bg-[#DCEEFF]', border: 'border-transparent', dot: 'bg-[#8CC4FF]', label: 'Azul' },
+  green: { bg: 'bg-[#D8F1E3]', border: 'border-transparent', dot: 'bg-[#7FD3A5]', label: 'Verde' },
 };

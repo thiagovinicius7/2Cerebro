@@ -4,7 +4,7 @@ import { Routine } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { addDays, parseDate, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
 import { challengeProgress, describeRoutine, isRoutineOn, novenaDays, routineStreak } from '../lib/schedule';
-import { Chip, Empty, SectionTitle } from './ui';
+import { Chip, Empty, Hero, Overlap, SectionTitle } from './ui';
 
 function Dot({
   done,
@@ -21,7 +21,7 @@ function Dot({
   onClick: () => void;
   tone?: 'emerald' | 'violet' | 'amber';
 }) {
-  const on = { emerald: 'bg-emerald-500 text-white', violet: 'bg-violet-500 text-white', amber: 'bg-amber-500 text-white' }[tone];
+  const on = { emerald: 'bg-mata-600 text-white', violet: 'bg-violet-500 text-white', amber: 'bg-amber-500 text-white' }[tone];
   return (
     <button
       onClick={e => {
@@ -30,7 +30,7 @@ function Dot({
       }}
       className={`w-8 h-8 rounded-full text-[11px] font-semibold flex items-center justify-center transition active:scale-90 ${
         done ? on : scheduled ? 'bg-stone-100 text-stone-500' : 'bg-transparent text-stone-300 border border-dashed border-stone-200'
-      } ${isToday ? 'ring-2 ring-offset-1 ring-stone-900' : ''}`}
+      } ${isToday ? 'ring-2 ring-offset-1 ring-mata-700' : ''}`}
     >
       {label}
     </button>
@@ -114,11 +114,11 @@ function RoutineCard({ r }: { r: Routine }) {
   return (
     <div
       onClick={() => setEditing({ kind: 'routine', item: r })}
-      className={`bg-white rounded-2xl border border-stone-200 p-4 cursor-pointer ${r.archived ? 'opacity-60' : ''}`}
+      className={`card p-4 cursor-pointer ${r.archived ? 'opacity-60' : ''}`}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-stone-900 leading-snug">{r.title}</div>
+          <div className="font-bold text-tinta leading-snug">{r.title}</div>
           <div className="text-xs text-stone-500 mt-0.5">{describeRoutine(r)}</div>
         </div>
         {streak > 1 && (
@@ -171,13 +171,22 @@ export default function RoutineView() {
       </>
     );
 
+  const today = todayStr();
+  const todays = routines.filter(r => isRoutineOn(r, today));
+  const doneToday = todays.filter(r => r.history?.[today]).length;
+
   return (
     <div>
+      <Hero eyebrow={todays.length ? `${doneToday} de ${todays.length} feitos hoje` : 'Hábitos, horários, novenas e desafios'} title="Rotina" />
+      <Overlap>
       <button
         onClick={() => setEditing({ kind: 'routine', item: null, preset: group ? { category: group } : undefined })}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-medium text-stone-700 shadow-sm"
+        className="card w-full flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-tinta"
       >
-        <Plus size={17} /> Hábito, bloco, novena ou desafio
+        <span className="w-7 h-7 rounded-lg bg-violet-50 text-violet-500 flex items-center justify-center">
+          <Plus size={17} />
+        </span>
+        Hábito, horário, novena ou desafio
       </button>
 
       {groups.length > 0 && (
@@ -219,6 +228,7 @@ export default function RoutineView() {
           )}
         </div>
       )}
+      </Overlap>
     </div>
   );
 }

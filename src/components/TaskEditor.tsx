@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Repeat, Trash2 } from 'lucide-react';
+import { CalendarX, Repeat, Trash2 } from 'lucide-react';
 import { Recurrence, RecurrenceFreq, Task } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { addDays, formatDayLabel, parseDate, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
 import { AutoTextarea, Chip, Field, inputCls, primaryBtn, Sheet, TagInput } from './ui';
+import { StatusMenu } from './status';
 
 export default function TaskEditor({ task, preset, onClose }: { task: Task | null; preset?: Partial<Task>; onClose: () => void }) {
-  const { newTask, saveTask, deleteTask, toggleTask, allTags } = useBrain();
+  const { newTask, saveTask, deleteTask, deleteTaskOccurrence, toggleTask, allTags } = useBrain();
+  const [askDelete, setAskDelete] = useState(false);
   const [draft, setDraft] = useState<Task>(() => task || newTask(preset));
   const isNew = !task;
   const today = todayStr();
@@ -59,6 +61,10 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
           {!isNew && (
             <button
               onClick={() => {
+                if (task?.recurrence && task.dueDate) {
+                  setAskDelete(true);
+                  return;
+                }
                 deleteTask(draft);
                 onClose();
               }}
@@ -85,6 +91,34 @@ export default function TaskEditor({ task, preset, onClose }: { task: Task | nul
         </div>
       }
     >
+      {askDelete && task?.dueDate && (
+        <StatusMenu
+          title="Apagar tarefa que repete"
+          onClose={() => setAskDelete(false)}
+          options={[
+            {
+              key: 'one',
+              label: `Apagar só esta (${formatDayLabel(task.dueDate).toLowerCase()})`,
+              icon: <CalendarX size={18} />,
+              tone: 'red',
+              onSelect: () => {
+                deleteTaskOccurrence(task);
+                onClose();
+              },
+            },
+            {
+              key: 'all',
+              label: 'Apagar todas as repetições',
+              icon: <Trash2 size={18} />,
+              tone: 'red',
+              onSelect: () => {
+                deleteTask(task);
+                onClose();
+              },
+            },
+          ]}
+        />
+      )}
       <input
         autoFocus={isNew}
         value={draft.title}

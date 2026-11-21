@@ -26,6 +26,7 @@ interface BrainCtx {
   saveTask: (t: Task) => void;
   toggleTask: (t: Task) => void;
   deleteTask: (t: Task) => void;
+  deleteTaskOccurrence: (t: Task) => void;
   saveNote: (n: Note) => void;
   deleteNote: (n: Note) => void;
   toggleChecklist: (n: Note, itemId: string) => void;
@@ -94,6 +95,17 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
       toast('Tarefa apagada', { label: 'Desfazer', run: () => saveTask(task) });
     },
     [uid, saveTask, toast],
+  );
+
+  /** Tarefa repetida: apaga só a ocorrência atual e passa para a próxima data (sem marcar como feita ou não feita). */
+  const deleteTaskOccurrence = useCallback(
+    (task: Task) => {
+      if (!task.recurrence || !task.dueDate) return;
+      const next = nextDueDate(task.dueDate, task.recurrence);
+      saveTask({ ...task, dueDate: next });
+      toast(`Apagada só esta. Próxima: ${formatDayLabel(next).toLowerCase()}`, { label: 'Desfazer', run: () => saveTask(task) });
+    },
+    [saveTask, toast],
   );
 
   const deleteNote = useCallback(
@@ -276,6 +288,7 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
     saveTask,
     toggleTask,
     deleteTask,
+    deleteTaskOccurrence,
     saveNote,
     deleteNote,
     toggleChecklist,

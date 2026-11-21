@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CheckSquare, ChevronLeft, ChevronRight, MapPin, Pin, Receipt, RefreshCw, Repeat, Sparkles } from 'lucide-react';
-import { CalendarEvent, Routine, Task } from '../lib/types';
+import { Ban, CalendarDays, Check, CheckSquare, ChevronLeft, ChevronRight, History, MapPin, Pin, Receipt, RefreshCw, Repeat, Sparkles, X } from 'lucide-react';
+import { CalendarEvent, ItemStatus, Routine, Task } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { useCalendarDay } from '../lib/useCalendar';
 import { eventEndTime, eventTime } from '../lib/calendar';
 import { addDays, diffDays, formatDayLabel, formatLong, parseDate, todayStr, weekday, WEEKDAYS_SHORT } from '../lib/dates';
-import { challengeProgress, isRoutineOn, novenaDays, sortTasks, taskOnDay } from '../lib/schedule';
+import { challengeProgress, isRoutineOn, novenaDays, routineStatus, sortTasks, taskOnDay } from '../lib/schedule';
+import { eventKey, useDayMarks } from '../lib/days';
+import { routineToneOf, statusOptions, StatusButton } from './status';
 import { auth } from '../firebase';
 import TaskRow from './TaskRow';
 import NoteCard from './NoteCard';
-import { CheckButton, Hero, Overlap, SectionCard, useToast } from './ui';
+import { Hero, Overlap, SectionCard, useToast } from './ui';
 
 type TimelineItem =
   | { kind: 'event'; time: string; end?: string; ev: CalendarEvent }
@@ -27,8 +29,8 @@ const greeting = () => {
 };
 
 function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: string; showNovenaBar?: boolean }) {
-  const { toggleRoutine, setEditing } = useBrain();
-  const done = !!r.history?.[date];
+  const { toggleRoutine, setRoutineStatus, setEditing } = useBrain();
+  const status = routineStatus(r, date);
   let extra = '';
   let novena: string[] | null = null;
   if (r.pattern === 'novena') {
@@ -40,26 +42,145 @@ function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: str
   } else if (r.endTime) {
     extra = `até ${r.endTime}`;
   }
-  const tone = r.pattern === 'novena' ? 'violet' : r.pattern === 'challenge' ? 'amber' : 'emerald';
   return (
     <div onClick={() => setEditing({ kind: 'routine', item: r })} className="px-4 py-3 cursor-pointer active:bg-stone-50">
       <div className="flex items-start gap-3">
         <div className="pt-0.5">
-          <CheckButton checked={done} tone={tone} onChange={() => toggleRoutine(r, date)} />
+          <StatusButton
+            status={status}
+            tone={routineToneOf(r)}
+            onTap={() => toggleRoutine(r, date)}
+            menuTitle={r.title}
+            menu={statusOptions(status, st => setRoutineStatus(r, date, st))}
+          />
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`text-[15px] leading-snug ${done ? 'line-through text-stone-400' : 'text-tinta'}`}>{r.title}</div>
-          {extra && <div className="text-xs text-stone-500 mt-0.5">{extra}</div>}
+          <div className={`text-[15px] leading-snug ${status === 'done' || status === 'cancel' ? 'line-through text-stone-400' : 'text-tinta'}`}>
+            {r.title}
+          </div>
+          <StatusNote status={status} extra={extra} />
         </div>
       </div>
       {showNovenaBar && novena && (
         <div className="flex gap-1 mt-2 ml-9">
           {novena.map(d => (
-            <span key={d} className={`flex-1 h-2 rounded-full ${r.history?.[d] ? 'bg-violet-500' : 'bg-violet-100'} ${d === date ? 'ring-2 ring-violet-300' : ''}`} />
+            <span key={d} className={`flex-1 h-2 rounded-full ${r.history?.[d] === true ? 'bg-violet-500' : r.history?.[d] === 'skip' ? 'bg-rose-300' : 'bg-violet-100'} ${d === date ? 'ring-2 ring-violet-300' : ''}`} />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function StatusNote({ status, extra }: { status: ItemStatus | null; extra?: string }) {
+  const label = status === 'skip' ? 'não feito' : status === 'cancel' ? 'cancelado' : '';
+  if (!label && !extra) return null;
+  return (
+    <div className="text-xs text-stone-500 mt-0.5">
+      {label && <span className={status === 'skip' ? 'text-rose-600 font-medium' : 'text-stone-400 font-medium'}>{label}</span>}
+      {label && extra && ' · '}
+      {extra}
+    </div>
+  );
+}
+
+function EventLine({ ev, date }: { ev: CalendarEvent; date: string }) {
+  const { uid, setEventStatus } = useBrain();
+  const marks = useDayMarksCtx();
+  const status = marks[eventKey(ev.id)] || null;
+  const set = (st: ItemStatus | null) => setEventStatus(date, ev.id, st);
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className="pt-0.5">
+        <StatusButton
+          status={status}
+          tone="sky"
+          onTap={() => set(status ? null : 'done')}
+          menuTitle={ev.title}
+          menu={statusOptions(status, set)}
+        />
+      </div>
+      <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: ev.color || '#0284c7' }} />
+      <div className="min-w-0">
+        <div className={`text-[15px] leading-snug ${status === 'done' || status === 'cancel' ? 'line-through text-stone-400' : 'text-tinta'}`}>
+          {ev.title}
+        </div>
+        <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-2">
+          {status === 'skip' && <span className="text-rose-600 font-medium">não feito</span>}
+          {status === 'cancel' && <span className="text-stone-400 font-medium">cancelado</span>}
+          <span>{ev.calendarName}</span>
+          {ev.location && (
+            <span className="inline-flex items-center gap-0.5 truncate max-w-[12rem]">
+              <MapPin size={11} />
+              {ev.location}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MarksCtx = React.createContext<Record<string, ItemStatus>>({});
+const useDayMarksCtx = () => React.useContext(MarksCtx);
+
+/** O que ficou sem marcação ontem (eventos da agenda e rotina). */
+function YesterdayCard({ today }: { today: string }) {
+  const { uid, routines, setRoutineStatus, setEventStatus } = useBrain();
+  const y = addDays(today, -1);
+  const cal = useCalendarDay(y);
+  const marks = useDayMarks(uid, y);
+  const pendingRoutines = routines.filter(r => isRoutineOn(r, y) && !routineStatus(r, y));
+  const pendingEvents = cal.events.filter(e => !marks[eventKey(e.id)]);
+  const items = [
+    ...pendingEvents.map(e => ({
+      key: `e-${e.id}`,
+      title: e.title,
+      sub: e.allDay ? 'Agenda · dia todo' : `Agenda · ${eventTime(e)}`,
+      time: e.allDay ? '00:00' : eventTime(e),
+      set: (st: ItemStatus) => setEventStatus(y, e.id, st),
+    })),
+    ...pendingRoutines.map(r => ({
+      key: `r-${r.id}`,
+      title: r.title,
+      sub: r.time ? `Rotina · ${r.time}` : 'Rotina',
+      time: r.time || '99:99',
+      set: (st: ItemStatus) => setRoutineStatus(r, y, st),
+    })),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+
+  if (!items.length) return null;
+  const btn = 'w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition';
+  return (
+    <SectionCard
+      icon={<History size={17} />}
+      tint="amber"
+      title="Ficou de ontem"
+      right={
+        <button onClick={() => items.forEach(i => i.set('skip'))} className="text-xs font-semibold text-stone-400">
+          Não fiz nenhum
+        </button>
+      }
+    >
+      <div className="px-4 pb-1 text-xs text-stone-500">Você não marcou estes itens. O que aconteceu?</div>
+      {items.map(i => (
+        <div key={i.key} className="flex items-center gap-2 px-4 py-2.5">
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] text-tinta leading-snug truncate">{i.title}</div>
+            <div className="text-xs text-stone-500">{i.sub}</div>
+          </div>
+          <button onClick={() => i.set('done')} className={`${btn} bg-mata-50 text-mata-700`} aria-label="Fiz" title="Fiz">
+            <Check size={18} strokeWidth={2.6} />
+          </button>
+          <button onClick={() => i.set('skip')} className={`${btn} bg-rose-50 text-rose-600`} aria-label="Não fiz" title="Não fiz">
+            <X size={18} strokeWidth={2.6} />
+          </button>
+          <button onClick={() => i.set('cancel')} className={`${btn} bg-stone-100 text-stone-500`} aria-label="Cancelado" title="Cancelado">
+            <Ban size={17} />
+          </button>
+        </div>
+      ))}
+    </SectionCard>
   );
 }
 
@@ -73,12 +194,13 @@ function TimePill({ time, end }: { time: string; end?: string }) {
 }
 
 export default function TodayView() {
-  const { tasks, routines, notes, setEditing } = useBrain();
+  const { uid, tasks, routines, notes, setEditing, setEventStatus } = useBrain();
   const toast = useToast();
   const [today, setToday] = useState(todayStr());
   const [date, setDate] = useState(today);
   const [now, setNow] = useState(nowHHMM());
   const cal = useCalendarDay(date);
+  const marks = useDayMarks(uid, date);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -96,7 +218,9 @@ export default function TodayView() {
   const dayRoutines = routines.filter(r => isRoutineOn(r, date));
   const dayTasks = tasks.filter(t => taskOnDay(t, date, today)).sort(sortTasks);
   const doneTasksToday = tasks.filter(t => t.done && t.doneAt && t.dueDate && t.dueDate <= date && t.doneAt.slice(0, 10) === date && !t.time);
-  const recurringDone = isToday ? tasks.reduce((n, t) => n + (t.history || []).filter(h => h.doneAt.slice(0, 10) === date).length, 0) : 0;
+  const recurringDone = isToday
+    ? tasks.reduce((n, t) => n + (t.history || []).filter(h => h.status !== 'skip' && h.doneAt.slice(0, 10) === date).length, 0)
+    : 0;
 
   const timed: TimelineItem[] = useMemo(() => {
     const items: TimelineItem[] = [
@@ -112,10 +236,15 @@ export default function TodayView() {
   const untimedRoutines = dayRoutines.filter(r => !r.time);
   const pinned = notes.filter(n => n.pinned).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 
-  const routinesDone = dayRoutines.filter(r => r.history?.[date]).length;
+  // Cancelados não entram na conta do dia
+  const countedRoutines = dayRoutines.filter(r => routineStatus(r, date) !== 'cancel');
+  const routinesDone = countedRoutines.filter(r => routineStatus(r, date) === 'done').length;
+  const countedEvents = cal.events.filter(e => marks[eventKey(e.id)] !== 'cancel');
+  const eventsDone = countedEvents.filter(e => marks[eventKey(e.id)] === 'done').length;
   const tasksPending = dayTasks.length;
-  const total = dayRoutines.length + dayTasks.length + doneTasksToday.length + recurringDone;
-  const doneCount = routinesDone + doneTasksToday.length + recurringDone;
+  const doneTasksCounted = doneTasksToday.filter(t => !t.cancelled);
+  const total = countedRoutines.length + countedEvents.length + dayTasks.length + doneTasksCounted.length + recurringDone;
+  const doneCount = routinesDone + eventsDone + doneTasksCounted.length + recurringDone;
   const pct = total ? doneCount / total : 0;
   const overdueCount = dayTasks.filter(t => t.dueDate && t.dueDate < today).length;
 
@@ -201,6 +330,7 @@ export default function TodayView() {
       </Hero>
 
       <Overlap>
+        <MarksCtx.Provider value={marks}>
         <div className="grid grid-cols-3 gap-2.5">
           <div className="card p-3">
             <div className="text-xl font-bold">{eventsCount}</div>
@@ -215,11 +345,13 @@ export default function TodayView() {
           <div className="card p-3">
             <div className="text-xl font-bold">
               {routinesDone}
-              <span className="text-stone-400 font-semibold">/{dayRoutines.length}</span>
+              <span className="text-stone-400 font-semibold">/{countedRoutines.length}</span>
             </div>
             <div className="text-[11.5px] text-stone-500">rotina</div>
           </div>
         </div>
+
+        {isToday && <YesterdayCard today={today} />}
 
         {(timed.length > 0 || allDay.length > 0 || cal.status === 'disconnected' || cal.status === 'error') && (
           <SectionCard
@@ -243,12 +375,16 @@ export default function TodayView() {
             )}
             {allDay.length > 0 && (
               <div className="flex flex-wrap gap-2 px-4 py-1.5">
-                {allDay.map(e => (
-                  <span key={e.id} className="text-sm px-3 py-1 rounded-xl bg-sky-50 text-sky-900">
-                    <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: e.color || '#0284c7' }} />
-                    {e.title}
-                  </span>
-                ))}
+                {allDay.map(e => {
+                  const st = marks[eventKey(e.id)] || null;
+                  const set = (x: ItemStatus | null) => setEventStatus(date, e.id, x);
+                  return (
+                    <span key={e.id} className="inline-flex items-center gap-2 text-sm pl-1.5 pr-3 py-1 rounded-xl bg-sky-50 text-sky-900">
+                      <StatusButton status={st} tone="sky" size={18} onTap={() => set(st ? null : 'done')} menuTitle={e.title} menu={statusOptions(st, set)} />
+                      <span className={st === 'done' || st === 'cancel' ? 'line-through text-sky-900/50' : ''}>{e.title}</span>
+                    </span>
+                  );
+                })}
               </div>
             )}
             {timed.map((item, idx) => (
@@ -264,23 +400,7 @@ export default function TodayView() {
                     <TimePill time={item.time} end={'end' in item ? item.end : undefined} />
                   </div>
                   <div className="flex-1 min-w-0 -ml-1">
-                    {item.kind === 'event' && (
-                      <div className="flex gap-3 px-4 py-3">
-                        <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: item.ev.color || '#0284c7' }} />
-                        <div className="min-w-0">
-                          <div className="text-[15px] text-tinta leading-snug">{item.ev.title}</div>
-                          <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-2">
-                            <span>{item.ev.calendarName}</span>
-                            {item.ev.location && (
-                              <span className="inline-flex items-center gap-0.5 truncate max-w-[12rem]">
-                                <MapPin size={11} />
-                                {item.ev.location}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {item.kind === 'event' && <EventLine ev={item.ev} date={date} />}
                     {item.kind === 'routine' && <RoutineLine r={item.r} date={date} />}
                     {item.kind === 'task' && <TaskRow task={item.t} showDate={false} />}
                   </div>
@@ -348,6 +468,7 @@ export default function TodayView() {
             </div>
           </>
         )}
+        </MarksCtx.Provider>
       </Overlap>
     </div>
   );

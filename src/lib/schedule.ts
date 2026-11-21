@@ -1,7 +1,15 @@
-import { Recurrence, Routine, Task } from './types';
+import { ItemStatus, Recurrence, Routine, Task } from './types';
 import { addDays, addMonths, daysInMonth, diffDays, parseDate, todayStr, weekday, WEEKDAYS_SHORT } from './dates';
 
 // ---------- Rotina (hábitos, blocos, novenas, desafios) ----------
+
+export const routineStatus = (r: Routine, date: string): ItemStatus | null => {
+  const v = r.history?.[date];
+  if (v === true) return 'done';
+  if (v === 'skip' || v === 'cancel') return v;
+  return null;
+};
+export const routineDone = (r: Routine, date: string) => r.history?.[date] === true;
 
 export const isRoutineOn = (r: Routine, date: string): boolean => {
   if (r.archived) return false;
@@ -52,19 +60,21 @@ export const challengeProgress = (r: Routine, ref: string = todayStr()) => {
   const start = r.startDate || ref;
   const dayN = Math.min(Math.max(diffDays(start, ref) + 1, 0), total);
   let done = 0;
-  for (let i = 0; i < total; i++) if (r.history?.[addDays(start, i)]) done++;
+  for (let i = 0; i < total; i++) if (r.history?.[addDays(start, i)] === true) done++;
   return { total, dayN, done, finished: diffDays(start, ref) >= total };
 };
 
 /** Sequência de dias programados feitos seguidos (hoje conta só se já foi feito). */
 export const routineStreak = (r: Routine, ref: string = todayStr()): number => {
+  // Cancelado não conta nem quebra a sequência; "não feito" quebra.
   let streak = 0;
   let d = ref;
-  if (!r.history?.[d]) d = addDays(d, -1);
+  if (r.history?.[d] !== true) d = addDays(d, -1);
   for (let i = 0; i < 400; i++) {
     if (isRoutineOn(r, d)) {
-      if (r.history?.[d]) streak++;
-      else break;
+      const v = r.history?.[d];
+      if (v === true) streak++;
+      else if (v !== 'cancel') break;
     }
     d = addDays(d, -1);
     if (r.createdAt && d < r.createdAt.slice(0, 10) && !r.history?.[d]) break;

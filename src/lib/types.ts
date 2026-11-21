@@ -10,9 +10,13 @@ export interface Recurrence {
   monthDay?: number; // para 'monthly': dia âncora (mantém o 31 quando o mês é curto)
 }
 
+/** Estado de um item num dia: feito, não feito ou cancelado. */
+export type ItemStatus = 'done' | 'skip' | 'cancel';
+
 export interface TaskDone {
-  date: string; // data de vencimento da ocorrência concluída (YYYY-MM-DD)
+  date: string; // data de vencimento da ocorrência (YYYY-MM-DD)
   doneAt: string; // ISO
+  status?: 'done' | 'skip'; // ausente = feito
 }
 
 export interface Task {
@@ -26,6 +30,7 @@ export interface Task {
   tags: string[];
   done: boolean;
   doneAt?: string | null;
+  cancelled?: boolean; // concluída como "cancelada"
   history?: TaskDone[]; // ocorrências concluídas de tarefas repetidas
   createdAt: string;
   updatedAt: string;
@@ -77,7 +82,7 @@ export interface Routine {
   startDate?: string | null;
   durationDays?: number | null; // desafio (ex.: 40)
   category?: string;
-  history: Record<string, boolean>; // YYYY-MM-DD -> feito
+  history: Record<string, boolean | 'skip' | 'cancel'>; // YYYY-MM-DD -> true (feito), 'skip' (não feito), 'cancel'
   archived?: boolean;
   createdAt: string;
   updatedAt: string;

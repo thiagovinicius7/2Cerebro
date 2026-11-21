@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { Note, Routine, Task } from './types';
+import { ItemStatus, Note, Routine, Task } from './types';
 import { removeItem, saveItem, useCollection } from './db';
-import { formatDayLabel, newId, nowIso, todayStr } from './dates';
+import { addDays, formatDayLabel, newId, nowIso, todayStr } from './dates';
 import { nextDueDate } from './schedule';
 import { deleteMedia } from './media';
+import { setEventMark } from './days';
 import { useToast } from '../components/ui';
 
 type Editing =
@@ -30,6 +31,10 @@ interface BrainCtx {
   toggleChecklist: (n: Note, itemId: string) => void;
   saveRoutine: (r: Routine) => void;
   toggleRoutine: (r: Routine, date: string) => void;
+  setRoutineStatus: (r: Routine, date: string, status: ItemStatus | null) => void;
+  setEventStatus: (date: string, eventId: string, status: ItemStatus | null) => void;
+  cancelTask: (t: Task) => void;
+  postponeTask: (t: Task) => void;
   deleteRoutine: (r: Routine) => void;
   newTask: (preset?: Partial<Task>) => Task;
   newNote: (preset?: Partial<Note>) => Note;
@@ -63,7 +68,7 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
   const toggleTask = useCallback(
     (task: Task) => {
       if (task.done) {
-        saveTask({ ...task, done: false, doneAt: null });
+        saveTask({ ...task, done: false, doneAt: null, cancelled: false });
         return;
       }
       if (task.recurrence && task.dueDate) {
@@ -114,14 +119,54 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
     [saveNote],
   );
 
-  const toggleRoutine = useCallback(
-    (rt: Routine, date: string) => {
+  const setRoutineStatus = useCallback(
+    (rt: Routine, date: string, status: ItemStatus | null) => {
       const history = { ...(rt.history || {}) };
-      if (history[date]) delete history[date];
-      else history[date] = true;
+      if (!status) delete history[date];
+      else history[date] = status === 'done' ? true : status;
       saveRoutine({ ...rt, history });
     },
     [saveRoutine],
+  );
+
+  // Toque simples: marca feito; se já tinha qualquer estado, limpa
+  const toggleRoutine = useCallback(
+    (rt: Routine, date: string) => setRoutineStatus(rt, date, rt.history?.[date] ? null : 'done'),
+    [setRoutineStatus],
+  );
+
+  const setEventStatus = useCallback(
+    (date: string, eventId: string, status: ItemStatus | null) => setEventMark(uid, date, eventId, status),
+    [uid],
+  );
+
+  const cancelTask = useCallback(
+    (task: Task) => {
+      saveTask({ ...task, done: true, cancelled: true, doneAt: nowIso() });
+      toast('Tarefa cancelada', { label: 'Desfazer', run: () => saveTask(task) });
+    },
+    [saveTask, toast],
+  );
+
+  /** Não feita: tarefa única vai para amanhã; tarefa repetida pula esta vez. */
+  const postponeTask = useCallback(
+    (task: Task) => {
+      const today = todayStr();
+      if (task.recurrence && task.dueDate) {
+        const next = nextDueDate(task.dueDate, task.recurrence);
+        saveTask({
+          ...task,
+          dueDate: next,
+          history: [...(task.history || []).slice(-60), { date: task.dueDate, doneAt: nowIso(), status: 'skip' }],
+        });
+        toast(`Pulada. Próxima: ${formatDayLabel(next).toLowerCase()}`, { label: 'Desfazer', run: () => saveTask(task) });
+      } else {
+        const base = task.dueDate && task.dueDate > today ? task.dueDate : today;
+        saveTask({ ...task, dueDate: addDays(base, 1) });
+        toast('Adiada para amanhã', { label: 'Desfazer', run: () => saveTask(task) });
+      }
+    },
+    [saveTask, toast],
   );
 
   const deleteRoutine = useCallback(
@@ -208,6 +253,10 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
     toggleChecklist,
     saveRoutine,
     toggleRoutine,
+    setRoutineStatus,
+    setEventStatus,
+    cancelTask,
+    postponeTask,
     deleteRoutine,
     newTask,
     newNote,

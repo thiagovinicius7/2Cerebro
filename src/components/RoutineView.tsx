@@ -1,51 +1,94 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ChevronDown, Flame, Plus, Repeat } from 'lucide-react';
-import { Routine } from '../lib/types';
+import { ItemStatus, Routine } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { addDays, parseDate, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
-import { challengeProgress, describeRoutine, isRoutineOn, novenaDays, routineStreak } from '../lib/schedule';
+import { challengeProgress, describeRoutine, isRoutineOn, novenaDays, routineDone, routineStatus, routineStreak } from '../lib/schedule';
+import { StatusMenu, statusOptions, swallowNextClick } from './status';
 import { Chip, Empty, Hero, Overlap, SectionTitle } from './ui';
 
 function Dot({
-  done,
+  status,
   scheduled,
   label,
   isToday,
   onClick,
+  onStatus,
+  menuTitle,
   tone = 'emerald',
 }: {
-  done: boolean;
+  status: ItemStatus | null;
   scheduled: boolean;
   label: string;
   isToday?: boolean;
   onClick: () => void;
+  onStatus: (s: ItemStatus | null) => void;
+  menuTitle: string;
   tone?: 'emerald' | 'violet' | 'amber';
 }) {
+  const [menu, setMenu] = useState(false);
+  const timer = useRef<number | null>(null);
+  const long = useRef(false);
+  const stop = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+  };
   const on = { emerald: 'bg-mata-600 text-white', violet: 'bg-violet-500 text-white', amber: 'bg-amber-500 text-white' }[tone];
+  const look =
+    status === 'done'
+      ? on
+      : status === 'skip'
+        ? 'bg-rose-100 text-rose-600'
+        : status === 'cancel'
+          ? 'bg-stone-200 text-stone-400 line-through'
+          : scheduled
+            ? 'bg-stone-100 text-stone-500'
+            : 'bg-transparent text-stone-300 border border-dashed border-stone-200';
   return (
-    <button
-      onClick={e => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className={`w-8 h-8 rounded-full text-[11px] font-semibold flex items-center justify-center transition active:scale-90 ${
-        done ? on : scheduled ? 'bg-stone-100 text-stone-500' : 'bg-transparent text-stone-300 border border-dashed border-stone-200'
-      } ${isToday ? 'ring-2 ring-offset-1 ring-mata-700' : ''}`}
-    >
-      {label}
-    </button>
+    <>
+      <button
+        onPointerDown={() => {
+          long.current = false;
+          timer.current = window.setTimeout(() => {
+            long.current = true;
+            swallowNextClick();
+            setMenu(true);
+          }, 450);
+        }}
+        onPointerUp={stop}
+        onPointerLeave={stop}
+        onContextMenu={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          stop();
+          setMenu(true);
+        }}
+        onClick={e => {
+          e.stopPropagation();
+          if (long.current) return void (long.current = false);
+          onClick();
+        }}
+        className={`w-8 h-8 rounded-full text-[11px] font-semibold flex items-center justify-center transition active:scale-90 select-none ${look} ${
+          isToday ? 'ring-2 ring-offset-1 ring-mata-700' : ''
+        }`}
+        style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
+      >
+        {status === 'skip' ? '✕' : label}
+      </button>
+      {menu && <StatusMenu title={menuTitle} options={statusOptions(status, onStatus)} onClose={() => setMenu(false)} />}
+    </>
   );
 }
 
 function RoutineCard({ r }: { r: Routine }) {
-  const { toggleRoutine, setEditing } = useBrain();
+  const { toggleRoutine, setRoutineStatus, setEditing } = useBrain();
   const today = todayStr();
   const streak = routineStreak(r, today);
 
   let body: React.ReactNode;
   if (r.pattern === 'novena') {
     const days = novenaDays(r, today);
-    const doneN = days.filter(d => r.history?.[d]).length;
+    const doneN = days.filter(d => routineDone(r, d)).length;
     body = (
       <>
         <div className="flex justify-between gap-1 mt-3">
@@ -53,7 +96,9 @@ function RoutineCard({ r }: { r: Routine }) {
             <Dot
               key={d}
               tone="violet"
-              done={!!r.history?.[d]}
+              status={routineStatus(r, d)}
+              onStatus={st => setRoutineStatus(r, d, st)}
+              menuTitle={`${r.title} · ${parseDate(d).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric' })}`}
               scheduled
               isToday={d === today}
               label={r.novenaMonthly ? String(parseDate(d).getDate()) : String(i + 1)}
@@ -83,7 +128,9 @@ function RoutineCard({ r }: { r: Routine }) {
             <Dot
               key={d}
               tone="amber"
-              done={!!r.history?.[d]}
+              status={routineStatus(r, d)}
+              onStatus={st => setRoutineStatus(r, d, st)}
+              menuTitle={`${r.title} · ${parseDate(d).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric' })}`}
               scheduled={isRoutineOn(r, d)}
               isToday={d === today}
               label={WEEKDAYS_LETTER[weekday(d)]}
@@ -100,7 +147,9 @@ function RoutineCard({ r }: { r: Routine }) {
         {last.map(d => (
           <Dot
             key={d}
-            done={!!r.history?.[d]}
+            status={routineStatus(r, d)}
+              onStatus={st => setRoutineStatus(r, d, st)}
+              menuTitle={`${r.title} · ${parseDate(d).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric' })}`}
             scheduled={isRoutineOn(r, d)}
             isToday={d === today}
             label={WEEKDAYS_LETTER[weekday(d)]}
@@ -173,7 +222,7 @@ export default function RoutineView() {
 
   const today = todayStr();
   const todays = routines.filter(r => isRoutineOn(r, today));
-  const doneToday = todays.filter(r => r.history?.[today]).length;
+  const doneToday = todays.filter(r => routineDone(r, today)).length;
 
   return (
     <div>

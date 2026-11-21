@@ -32,6 +32,7 @@ interface BrainCtx {
   saveRoutine: (r: Routine) => void;
   toggleRoutine: (r: Routine, date: string) => void;
   setRoutineStatus: (r: Routine, date: string, status: ItemStatus | null) => void;
+  toggleRoutineItem: (r: Routine, date: string, itemId: string) => void;
   setEventStatus: (date: string, eventId: string, status: ItemStatus | null) => void;
   cancelTask: (t: Task) => void;
   postponeTask: (t: Task) => void;
@@ -119,12 +120,39 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
     [saveNote],
   );
 
+  // Subitens: guarda só os últimos 60 dias de marcações
+  const pruneChecks = (checks: Record<string, string[]>) => {
+    const limit = addDays(todayStr(), -60);
+    return Object.fromEntries(Object.entries(checks).filter(([d, ids]) => d >= limit && ids.length));
+  };
+
   const setRoutineStatus = useCallback(
     (rt: Routine, date: string, status: ItemStatus | null) => {
       const history = { ...(rt.history || {}) };
       if (!status) delete history[date];
       else history[date] = status === 'done' ? true : status;
-      saveRoutine({ ...rt, history });
+      const next: Routine = { ...rt, history };
+      if (rt.items?.length) {
+        const checks = { ...(rt.checks || {}) };
+        if (status === 'done') checks[date] = rt.items.map(i => i.id);
+        else delete checks[date];
+        next.checks = pruneChecks(checks);
+      }
+      saveRoutine(next);
+    },
+    [saveRoutine],
+  );
+
+  const toggleRoutineItem = useCallback(
+    (rt: Routine, date: string, itemId: string) => {
+      const items = rt.items || [];
+      const cur = rt.checks?.[date] || [];
+      const nextIds = cur.includes(itemId) ? cur.filter(i => i !== itemId) : [...cur, itemId];
+      const history = { ...(rt.history || {}) };
+      const all = items.length > 0 && items.every(i => nextIds.includes(i.id));
+      if (all) history[date] = true;
+      else if (history[date] === true) delete history[date];
+      saveRoutine({ ...rt, history, checks: pruneChecks({ ...(rt.checks || {}), [date]: nextIds }) });
     },
     [saveRoutine],
   );
@@ -254,6 +282,7 @@ export function BrainProvider({ uid, children }: { uid: string; children: React.
     saveRoutine,
     toggleRoutine,
     setRoutineStatus,
+    toggleRoutineItem,
     setEventStatus,
     cancelTask,
     postponeTask,

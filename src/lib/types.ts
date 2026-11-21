@@ -82,6 +82,8 @@ export interface Routine {
   startDate?: string | null;
   durationDays?: number | null; // desafio (ex.: 40)
   category?: string;
+  items?: { id: string; text: string }[]; // subitens (ex.: Regra de vida)
+  checks?: Record<string, string[]>; // YYYY-MM-DD -> ids dos subitens marcados
   history: Record<string, boolean | 'skip' | 'cancel'>; // YYYY-MM-DD -> true (feito), 'skip' (não feito), 'cancel'
   archived?: boolean;
   createdAt: string;

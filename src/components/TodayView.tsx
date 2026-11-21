@@ -29,8 +29,10 @@ const greeting = () => {
 };
 
 function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: string; showNovenaBar?: boolean }) {
-  const { toggleRoutine, setRoutineStatus, setEditing } = useBrain();
+  const { toggleRoutine, setRoutineStatus, toggleRoutineItem, setEditing } = useBrain();
   const status = routineStatus(r, date);
+  const items = r.items || [];
+  const checked = r.checks?.[date] || [];
   let extra = '';
   let novena: string[] | null = null;
   if (r.pattern === 'novena') {
@@ -42,6 +44,7 @@ function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: str
   } else if (r.endTime) {
     extra = `até ${r.endTime}`;
   }
+  if (items.length) extra = [extra, `${items.filter(i => checked.includes(i.id)).length} de ${items.length}`].filter(Boolean).join(' · ');
   return (
     <div onClick={() => setEditing({ kind: 'routine', item: r })} className="px-4 py-3 cursor-pointer active:bg-stone-50">
       <div className="flex items-start gap-3">
@@ -61,6 +64,32 @@ function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: str
           <StatusNote status={status} extra={extra} />
         </div>
       </div>
+      {items.length > 0 && status !== 'cancel' && status !== 'skip' && (
+        <div className="mt-1.5 ml-9 space-y-0.5">
+          {items.map(i => {
+            const on = checked.includes(i.id);
+            return (
+              <button
+                key={i.id}
+                onClick={e => {
+                  e.stopPropagation();
+                  toggleRoutineItem(r, date, i.id);
+                }}
+                className="flex items-center gap-2.5 w-full text-left py-1"
+              >
+                <span
+                  className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center shrink-0 ${
+                    on ? 'bg-mata-600 border-mata-600 text-white' : 'border-[#CBD3CE] bg-white'
+                  }`}
+                >
+                  {on && <Check size={12} strokeWidth={3} />}
+                </span>
+                <span className={`text-sm ${on ? 'line-through text-stone-400' : 'text-stone-700'}`}>{i.text}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {showNovenaBar && novena && (
         <div className="flex gap-1 mt-2 ml-9">
           {novena.map(d => (

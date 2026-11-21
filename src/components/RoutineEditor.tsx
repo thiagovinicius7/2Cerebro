@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Archive, Trash2 } from 'lucide-react';
+import { Archive, Plus, Trash2, X } from 'lucide-react';
 import { Routine, RoutinePattern } from '../lib/types';
 import { useBrain } from '../lib/brain';
-import { todayStr, WEEKDAYS_LETTER } from '../lib/dates';
+import { newId, todayStr, WEEKDAYS_LETTER } from '../lib/dates';
 import { AutoTextarea, Field, inputCls, Sheet } from './ui';
 
 const PATTERNS: { key: RoutinePattern; label: string; hint: string }[] = [
@@ -25,9 +25,24 @@ export default function RoutineEditor({
   const set = <K extends keyof Routine>(k: K, v: Routine[K]) => setD(x => ({ ...x, [k]: v }));
   const isNew = !routine;
 
+  const [newItem, setNewItem] = useState('');
+  const items = d.items || [];
+  const addItem = () => {
+    const t = newItem.trim();
+    if (!t) return;
+    set('items', [...items, { id: newId(), text: t }]);
+    setNewItem('');
+  };
+
   const save = () => {
     if (!d.title.trim()) return onClose();
-    saveRoutine({ ...d, title: d.title.trim(), startDate: d.startDate || todayStr() });
+    const pending = newItem.trim() ? [...items, { id: newId(), text: newItem.trim() }] : items;
+    saveRoutine({
+      ...d,
+      title: d.title.trim(),
+      startDate: d.startDate || todayStr(),
+      items: pending.filter(i => i.text.trim()),
+    });
     onClose();
   };
 
@@ -181,6 +196,45 @@ export default function RoutineEditor({
           </div>
         </Field>
       )}
+
+      <Field label="Subitens (opcional — viram uma lista para marcar a cada dia)">
+        <div className="space-y-1.5">
+          {items.map((it, idx) => (
+            <div key={it.id} className="flex items-center gap-2">
+              <span className="text-xs text-stone-400 w-4 text-right">{idx + 1}</span>
+              <input
+                value={it.text}
+                onChange={e => set('items', items.map(x => (x.id === it.id ? { ...x, text: e.target.value } : x)))}
+                className={inputCls}
+              />
+              <button
+                type="button"
+                onClick={() => set('items', items.filter(x => x.id !== it.id))}
+                className="p-2 text-stone-400 hover:text-rose-600"
+                aria-label="Tirar subitem"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <Plus size={16} className="text-stone-400 w-4" />
+            <input
+              value={newItem}
+              onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addItem();
+                }
+              }}
+              onBlur={addItem}
+              placeholder="Adicionar subitem"
+              className={inputCls}
+            />
+          </div>
+        </div>
+      </Field>
 
       <Field label="Grupo (opcional)">
         <input

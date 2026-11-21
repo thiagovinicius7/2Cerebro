@@ -31,9 +31,9 @@ export const isRoutineOn = (r: Routine, date: string): boolean => {
     return n >= 0 && n < 9;
   }
   if (r.pattern === 'challenge') {
-    if (!r.startDate) return false;
-    const n = diffDays(r.startDate, date);
-    return n >= 0 && n < (r.durationDays || 40) && dayOk;
+    // Só avança quando marca: continua aparecendo até completar todos os dias
+    if (!r.startDate || date < r.startDate || !dayOk) return false;
+    return challengeDoneBefore(r, date) < (r.durationDays || 40);
   }
   return false;
 };
@@ -55,13 +55,34 @@ export const novenaDays = (r: Routine, ref: string = todayStr()): string[] => {
   return Array.from({ length: 9 }, (_, i) => addDays(start, i));
 };
 
+/** Dias feitos do desafio antes da data (a partir do início). */
+export const challengeDoneBefore = (r: Routine, date: string) => {
+  const start = r.startDate || date;
+  let n = 0;
+  for (const [d, v] of Object.entries(r.history || {})) if (v === true && d >= start && d < date) n++;
+  return n;
+};
+
+/** Desafio: o número do dia só anda quando você marca. dayN = dia de hoje (feito ou a fazer). */
 export const challengeProgress = (r: Routine, ref: string = todayStr()) => {
   const total = r.durationDays || 40;
-  const start = r.startDate || ref;
-  const dayN = Math.min(Math.max(diffDays(start, ref) + 1, 0), total);
-  let done = 0;
-  for (let i = 0; i < total; i++) if (r.history?.[addDays(start, i)] === true) done++;
-  return { total, dayN, done, finished: diffDays(start, ref) >= total };
+  const before = challengeDoneBefore(r, ref);
+  const doneToday = r.history?.[ref] === true;
+  const done = before + (doneToday ? 1 : 0);
+  return { total, dayN: Math.min(before + 1, total), done, finished: done >= total };
+};
+
+/** Número do dia em destaque: novena pelo calendário, desafio pelos dias marcados. */
+export const routineDayNumber = (r: Routine, date: string): { n: number; total: number } | null => {
+  if (r.pattern === 'novena') {
+    const idx = novenaDays(r, date).indexOf(date);
+    return idx >= 0 ? { n: idx + 1, total: 9 } : null;
+  }
+  if (r.pattern === 'challenge') {
+    const p = challengeProgress(r, date);
+    return { n: p.dayN, total: p.total };
+  }
+  return null;
 };
 
 /** Sequência de dias programados feitos seguidos (hoje conta só se já foi feito). */

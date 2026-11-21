@@ -5,7 +5,7 @@ import { useBrain } from '../lib/brain';
 import { useCalendarDay } from '../lib/useCalendar';
 import { eventEndTime, eventTime } from '../lib/calendar';
 import { addDays, diffDays, formatDayLabel, formatLong, parseDate, todayStr, weekday, WEEKDAYS_SHORT } from '../lib/dates';
-import { challengeProgress, isRoutineOn, novenaDays, routineStatus, sortTasks, taskOnDay } from '../lib/schedule';
+import { isRoutineOn, novenaDays, routineDayNumber, routineStatus, sortTasks, taskOnDay } from '../lib/schedule';
 import { eventKey, useDayMarks } from '../lib/days';
 import { routineToneOf, statusOptions, StatusButton } from './status';
 import { auth } from '../firebase';
@@ -35,12 +35,12 @@ function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: str
   const checked = r.checks?.[date] || [];
   let extra = '';
   let novena: string[] | null = null;
+  const dayNum = routineDayNumber(r, date);
   if (r.pattern === 'novena') {
     novena = novenaDays(r, date);
-    extra = `Novena · dia ${novena.indexOf(date) + 1} de 9`;
-  } else if (r.pattern === 'challenge') {
-    const p = challengeProgress(r, date);
-    extra = `Desafio · dia ${p.dayN} de ${p.total}`;
+    extra = 'Novena · de 9 dias';
+  } else if (r.pattern === 'challenge' && dayNum) {
+    extra = `Desafio · de ${dayNum.total} dias`;
   } else if (r.endTime) {
     extra = `até ${r.endTime}`;
   }
@@ -63,6 +63,15 @@ function RoutineLine({ r, date, showNovenaBar = false }: { r: Routine; date: str
           </div>
           <StatusNote status={status} extra={extra} />
         </div>
+        {dayNum && (
+          <span
+            className={`shrink-0 self-center text-sm font-bold px-2.5 py-1 rounded-xl ${
+              r.pattern === 'novena' ? 'bg-violet-50 text-violet-600' : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {dayNum.n}º dia
+          </span>
+        )}
       </div>
       {items.length > 0 && status !== 'cancel' && status !== 'skip' && (
         <div className="mt-1.5 ml-9 space-y-0.5">

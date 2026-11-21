@@ -3,7 +3,7 @@ import { ChevronDown, Flame, Plus, Repeat } from 'lucide-react';
 import { ItemStatus, Routine } from '../lib/types';
 import { useBrain } from '../lib/brain';
 import { addDays, parseDate, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
-import { challengeProgress, describeRoutine, isRoutineOn, novenaDays, routineDone, routineStatus, routineStreak } from '../lib/schedule';
+import { challengeProgress, describeRoutine, isRoutineOn, novenaDays, routineDayNumber, routineDone, routineStatus, routineStreak } from '../lib/schedule';
 import { StatusMenu, statusOptions, swallowNextClick } from './status';
 import { Chip, Empty, Hero, Overlap, SectionTitle } from './ui';
 
@@ -120,8 +120,8 @@ function RoutineCard({ r }: { r: Routine }) {
           <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(p.done / p.total) * 100}%` }} />
         </div>
         <div className="flex justify-between text-xs text-stone-500 mt-1.5">
-          <span>{p.finished ? 'Desafio encerrado' : `Dia ${p.dayN} de ${p.total}`}</span>
-          <span>{p.done} feitos</span>
+          <span>{p.finished ? 'Desafio concluído 🎉' : `${p.done} de ${p.total} dias feitos`}</span>
+          <span>{p.total - p.done} faltam</span>
         </div>
         <div className="flex justify-between gap-1 mt-3">
           {last.map(d => (
@@ -173,6 +173,18 @@ function RoutineCard({ r }: { r: Routine }) {
             {!!r.items?.length && ` · ${r.items.length} subitens`}
           </div>
         </div>
+        {(() => {
+          const dn = routineDayNumber(r, today);
+          return dn && !r.archived ? (
+            <span
+              className={`shrink-0 text-sm font-bold px-2.5 py-1 rounded-xl ${
+                r.pattern === 'novena' ? 'bg-violet-50 text-violet-600' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {dn.n}º dia
+            </span>
+          ) : null;
+        })()}
         {streak > 1 && (
           <div className="flex items-center gap-0.5 text-sm font-semibold text-orange-600 shrink-0" title="Dias seguidos">
             <Flame size={15} /> {streak}

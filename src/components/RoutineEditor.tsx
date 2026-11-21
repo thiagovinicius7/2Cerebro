@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Archive, Plus, Trash2, X } from 'lucide-react';
 import { Routine, RoutinePattern } from '../lib/types';
 import { useBrain } from '../lib/brain';
-import { newId, todayStr, WEEKDAYS_LETTER } from '../lib/dates';
+import { addDays, newId, todayStr, weekday, WEEKDAYS_LETTER } from '../lib/dates';
 import { AutoTextarea, Field, inputCls, Sheet } from './ui';
 
 const PATTERNS: { key: RoutinePattern; label: string; hint: string }[] = [
@@ -44,6 +44,26 @@ export default function RoutineEditor({
       items: pending.filter(i => i.text.trim()),
     });
     onClose();
+  };
+
+  // Desafio: marca como feito os dias vazios do início até ontem (dias já marcados ficam como estão)
+  const [filledMsg, setFilledMsg] = useState('');
+  const fillUntilYesterday = () => {
+    if (!d.startDate) return setFilledMsg('Escolha a data de início primeiro.');
+    const total = d.durationDays || 40;
+    const yesterday = addDays(todayStr(), -1);
+    const history = { ...(d.history || {}) };
+    let done = Object.entries(history).filter(([k, v]) => v === true && k >= d.startDate! && k <= yesterday).length;
+    let added = 0;
+    for (let day = d.startDate; day <= yesterday && done < total; day = addDays(day, 1)) {
+      const dayOk = !d.weekDays.length || d.weekDays.includes(weekday(day));
+      if (!dayOk || history[day] !== undefined) continue;
+      history[day] = true;
+      done++;
+      added++;
+    }
+    set('history', history);
+    setFilledMsg(added ? `${added} dias marcados como feitos. Toque em Salvar.` : 'Nada a marcar: os dias até ontem já estão preenchidos.');
   };
 
   const toggleDay = (i: number) => {
@@ -184,6 +204,14 @@ export default function RoutineEditor({
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">dias</span>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={fillUntilYesterday}
+            className="mt-2 w-full rounded-xl border border-stone-200 py-2.5 text-sm font-medium text-mata-700 hover:bg-stone-50"
+          >
+            Marcar feito do início até ontem
+          </button>
+          {filledMsg && <div className="text-xs text-stone-500 mt-1.5">{filledMsg}</div>}
         </Field>
       )}
 

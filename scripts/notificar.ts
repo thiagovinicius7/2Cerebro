@@ -21,7 +21,26 @@ const APP_URL = 'https://thiagovinicius7.github.io/2Cerebro/#hoje';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa && !process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Falta o segredo FIREBASE_SERVICE_ACCOUNT');
-initializeApp(sa ? { credential: cert(JSON.parse(sa)), projectId: PROJECT } : { projectId: PROJECT });
+
+/** Lê a chave mesmo que as quebras de linha tenham sido alteradas ao colar o segredo. */
+function lerChave(txt: string) {
+  try {
+    return JSON.parse(txt);
+  } catch {
+    const campo = (k: string) => txt.match(new RegExp(`"${k}"\\s*:\\s*"([^"]+)"`))?.[1];
+    const corpo = txt.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/)?.[1];
+    if (!corpo || !campo('client_email')) throw new Error('O segredo FIREBASE_SERVICE_ACCOUNT não parece a chave do Firebase');
+    const b64 = corpo.replace(/\\n|\\r|\s/g, '');
+    const linhas = b64.match(/.{1,64}/g)!.join('\n');
+    return {
+      projectId: campo('project_id') || PROJECT,
+      clientEmail: campo('client_email'),
+      privateKey: `-----BEGIN PRIVATE KEY-----\n${linhas}\n-----END PRIVATE KEY-----\n`,
+    };
+  }
+}
+
+initializeApp(sa ? { credential: cert(lerChave(sa)), projectId: PROJECT } : { projectId: PROJECT });
 const db = getFirestore();
 
 const list = (names: string[], max = 3) =>

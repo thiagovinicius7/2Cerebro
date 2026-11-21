@@ -5,6 +5,7 @@ import { auth } from './firebase';
 import { migrateIfNeeded } from './lib/migrate';
 import { BrainProvider, useBrain } from './lib/brain';
 import { onDbError } from './lib/db';
+import { refreshPush } from './lib/push';
 import { newId, todayStr } from './lib/dates';
 import LoginScreen from './components/LoginScreen';
 import TodayView from './components/TodayView';
@@ -32,13 +33,16 @@ const readTab = (): Tab => {
 };
 
 function Shell({ user }: { user: User }) {
-  const { editing, setEditing, loaded, synced, tasks } = useBrain();
+  const { uid, editing, setEditing, loaded, synced, tasks } = useBrain();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>(readTab);
   const [menu, setMenu] = useState(false);
   const [settings, setSettings] = useState(false);
 
   useEffect(() => onDbError(msg => toast(msg)), [toast]);
+  useEffect(() => {
+    refreshPush(uid);
+  }, [uid]);
   useEffect(() => {
     const onHash = () => setTab(readTab());
     window.addEventListener('hashchange', onHash);

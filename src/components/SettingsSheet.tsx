@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
-import { CalendarDays, CloudCheck, CloudOff, Download, LogOut, Upload } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Bell, CalendarDays, CloudCheck, CloudOff, Download, LogOut, Upload } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { logout, reconnectCalendar } from '../firebase';
 import { getCalendarToken } from '../lib/calendar';
 import { exportBackup, importBackup } from '../lib/backup';
 import { useBrain } from '../lib/brain';
+import { disablePush, enablePush, pushState, PushState } from '../lib/push';
 import { Sheet, useToast } from './ui';
 
 export default function SettingsSheet({ user, onClose }: { user: User; onClose: () => void }) {
@@ -13,6 +14,19 @@ export default function SettingsSheet({ user, onClose }: { user: User; onClose: 
   const [busy, setBusy] = useState(false);
   const [tok, setTok] = useState(getCalendarToken());
   const fileRef = useRef<HTMLInputElement>(null);
+  const [push, setPush] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    pushState().then(setPush);
+  }, []);
+
+  const pushText: Record<PushState, string> = {
+    on: 'Ligadas — 12h e 18h, com o que falta hoje. Toque para desligar',
+    off: 'Desligadas — toque para receber às 12h e às 18h',
+    blocked: 'Bloqueadas — libere nas configurações do navegador',
+    'ios-install': 'No iPhone: Compartilhar → Adicionar à Tela de Início, e abra o app por lá',
+    unsupported: 'Este navegador não recebe notificações',
+  };
 
   const row = 'w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-stone-50';
 
@@ -61,6 +75,33 @@ export default function SettingsSheet({ user, onClose }: { user: User; onClose: 
                 ? `Conectada até ${new Date(tok.exp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — toque para renovar`
                 : 'Desconectada — toque para conectar'}
             </div>
+          </div>
+        </button>
+        <button
+          className={row}
+          disabled={pushBusy || !push || !['on', 'off'].includes(push)}
+          onClick={async () => {
+            setPushBusy(true);
+            try {
+              if (push === 'on') {
+                await disablePush(uid);
+                toast('Notificações desligadas');
+              } else {
+                await enablePush(uid);
+                toast('Notificações ligadas');
+              }
+            } catch (e: any) {
+              toast(e?.message || 'Não consegui mudar as notificações.');
+            } finally {
+              setPush(await pushState());
+              setPushBusy(false);
+            }
+          }}
+        >
+          <Bell size={19} className={push === 'on' ? 'text-amber-500' : 'text-stone-600'} />
+          <div className="flex-1">
+            <div className="text-[15px]">{pushBusy ? 'Aguarde…' : 'Notificações'}</div>
+            <div className="text-xs text-stone-500">{push ? pushText[push] : '…'}</div>
           </div>
         </button>
         <button

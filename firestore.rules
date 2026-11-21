@@ -1,13 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Usuário do Claude (claude@2cerebro.invalid): pode ler e gravar
+    // as listas do Thiago, mas só ler o documento antigo (backup).
+    function isClaude(userId) {
+      return request.auth != null
+        && request.auth.uid == 'mEOTeageRcT80OIxWHudHoqljju1'
+        && userId == 'Pn00L4KAlKfCcex9OlaIyW2AFpl1';
+    }
+
     // Documento da versão 1 (fica como backup) e tudo o que está dentro dele:
-    // tasks, notes, routines, media e meta.
+    // tasks, notes, routines, media, days e meta.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isClaude(userId);
 
       match /{collection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if (request.auth != null && request.auth.uid == userId) || isClaude(userId);
       }
     }
   }

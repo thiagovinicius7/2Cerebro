@@ -44,10 +44,20 @@ function Shell({ user }: { user: User }) {
     refreshPush(uid);
   }, [uid]);
   useEffect(() => {
-    const onHash = () => setTab(readTab());
+    // Atalho "Nova tarefa" do ícone do app: abre o editor de tarefa para hoje
+    const onHash = () => {
+      if (window.location.hash === '#nova') {
+        history.replaceState(null, '', '#hoje');
+        setTab('hoje');
+        setEditing({ kind: 'task', item: null, preset: { dueDate: todayStr() } });
+        return;
+      }
+      setTab(readTab());
+    };
+    onHash();
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [setEditing]);
   const go = (t: Tab) => {
     window.location.hash = t;
     setTab(t);
